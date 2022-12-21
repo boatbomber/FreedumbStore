@@ -93,6 +93,32 @@ function LongTermMemory:UpdateAsync(key: string, callback: (any?) -> any?): any?
 	return exitValue
 end
 
+function LongTermMemory:SetAsync(key: string, value: any): any
+	local timestamp = DateTime.now().UnixTimestampMillis
+	local exitValue = nil
+
+	self._memorystore:UpdateAsync(key, function(old)
+		if old == nil then
+			old = self._datastore:GetAsync(key)
+			self:_log(1, "Got", key, "from datastore during set since it was not in memory")
+		end
+
+		if old and old.Timestamp > timestamp then
+			-- Stored is more recent, cancel this
+			exitValue = old.Value
+			return nil
+		end
+
+		exitValue = value
+		return {
+			Value = value,
+			Timestamp = timestamp,
+		}
+	end, 3_888_000)
+
+	return exitValue
+end
+
 function LongTermMemory:ListKeysAsync(): {string}
 	local keys, keysSet = {}, {}
 

@@ -32,6 +32,9 @@ function FreedumbStore.new(name: string, primaryKey: string)
 		_name = name,
 		_primaryKey = primaryKey,
 		_cache = {},
+
+		_datastore = DataStoreService:GetDataStore(name),
+		_memorystore = LongTermMemory.new(name),
 	}, FreedumbStore)
 	FreedumbStore._storeCache[name][primaryKey] = store
 
@@ -52,10 +55,8 @@ function FreedumbStore:ClearCache(): ()
 end
 
 function FreedumbStore:FindAvailableChunkIndex(): number
-	local chunkIndex = 0 -- TODO: Store last chunk index in memory store and start from there
+	local chunkIndex = self._memorystore:GetAsync(self._primaryKey .. "/TopChunk") or 1
 	while true do
-		chunkIndex += 1
-
 		local chunk = self:GetChunkAsync(chunkIndex)
 		if
 			(chunk == nil) -- Doesn't exist
@@ -64,19 +65,21 @@ function FreedumbStore:FindAvailableChunkIndex(): number
 		then
 			break
 		end
+
+		chunkIndex += 1
 	end
 
 	return chunkIndex
 end
 
 function FreedumbStore:GetChunkIndexOfKey(key: string): number?
-	return nil
+	local keyMap = self._memorystore:GetAsync(self._primaryKey .. "/KeyMap") or {}
+	return keyMap[key]
 end
 
 function FreedumbStore:GetChunkAsync(chunkIndex: number): {[any]: any}
-	local hashmap = {}
-
-	return hashmap
+	local location = self._memorystore:GetAsync(self._primaryKey .. "/" .. chunkIndex)
+	return self._datastore:GetAsync(location)
 end
 
 function FreedumbStore:GetAsync(key: string): any?
@@ -125,6 +128,34 @@ function FreedumbStore:SetAsync(key: string, value: any): ()
 	local chunkIndex: number = self:GetChunkIndexOfKey(key) or self:FindAvailableChunkIndex()
 
 	-- Put this key-value into the chunk
+	local chunk = self:GetChunkAsync(chunkIndex)
+	chunk[key] = value
+
+	-- Save where this key is
+	self._memorystore:UpdateAsync(self._primaryKey .. "/KeyMap", function(keyMap)
+		keyMap = keyMap or {}
+		keyMap[key] = chunkIndex
+		return keyMap
+	end)
+
+	-- Store the top chunk
+	self._memorystore:UpdateAsync(self._primaryKey .. "/TopChunk", function(topChunk)
+		if (topChunk == nil) or (topChunk < chunkIndex) then
+			return chunkIndex
+		end
+
+		return nil
+	end)
+
+	-- Save the chunk
+	self:SetChunkAsync(chunkIndex, chunk)
+end
+
+function FreedumbStore:SetChunkAsync(chunkIndex: number, chunk: any): ()
+	local location = HttpService:GenerateGUID(false)
+
+	self._datastore:SetAsync(location, chunk)
+	self._memorystore:SetAsync(self._primaryKey .. "/" .. chunkIndex, location)
 end
 
 function FreedumbStore:UpdateAsync(key: string, callback: (any?) -> any?): any

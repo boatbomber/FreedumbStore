@@ -66,7 +66,7 @@ function FreedumbStore:FindAvailableChunkIndex(): number
 			or (#HttpService:JSONEncode(chunk) < self.ChunkSize) -- Is not full
 		then
 			-- Chunk is available
-			self:_log(1, "Chunk #" .. chunkIndex .. " is available")
+			self:_log(1, "Chunk #" .. chunkIndex .. " is available with a size of", #HttpService:JSONEncode(chunk or {})/1024, "kilobytes")
 			break
 		end
 
@@ -187,11 +187,14 @@ function FreedumbStore:SetChunkAsync(chunkIndex: number, chunk: any): ()
 
 	local location = HttpService:GenerateGUID(false)
 
+	self:_log(1, "Putting chunk #" .. chunkIndex, "at location", location)
 	self._datastore:SetAsync(location, chunk)
-	local trueLocation = self._memorystore:SetAsync(self._primaryKey .. "/" .. chunkIndex, location)
-	self._cache[chunkIndex] = self._datastore:GetAsync(trueLocation)
 
-	self:_log(1, "Chunk #" .. chunkIndex, "is now at location", trueLocation)
+	self:_log(1, "Updating chunk #" .. chunkIndex, "location memory to new location")
+	local trueLocation = self._memorystore:SetAsync(self._primaryKey .. "/" .. chunkIndex, location)
+
+	self:_log(1, "Updating cache for chunk #" .. chunkIndex, "from location", trueLocation)
+	self._cache[chunkIndex] = self._datastore:GetAsync(trueLocation)
 end
 
 function FreedumbStore:UpdateAsync(key: string, callback: (any?) -> any?): any

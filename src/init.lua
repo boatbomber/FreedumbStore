@@ -27,14 +27,14 @@ function FreedumbStore.new(name: string, primaryKey: string)
 	end
 
 	local store = setmetatable({
-		_DEBUG = true,
+		_DEBUG = false,
 		_DEBUGID = "FreedumbStore[" .. name .. "/" .. primaryKey .. "]",
 		_name = name,
 		_primaryKey = primaryKey,
 		_cache = {},
 
 		_datastore = DataStoreService:GetDataStore(name),
-		_memorystore = LongTermMemory.new(name),
+		_memorystore = LongTermMemory.new(name .. "/Memory"),
 	}, FreedumbStore)
 	FreedumbStore._storeCache[name][primaryKey] = store
 
@@ -51,11 +51,13 @@ function FreedumbStore:_log(logLevel, ...): ()
 end
 
 function FreedumbStore:ClearCache(): ()
+	self:_log(1, "Clearing cache")
 	self._cache = {}
 end
 
 function FreedumbStore:FindAvailableChunkIndex(): number
 	local chunkIndex = self._memorystore:GetAsync(self._primaryKey .. "/TopChunk") or 1
+	self:_log(1, "Starting search for available at chunk #" .. chunkIndex)
 	while true do
 		local chunk = self:GetChunkAsync(chunkIndex)
 		if
@@ -63,6 +65,8 @@ function FreedumbStore:FindAvailableChunkIndex(): number
 			or (next(chunk) == nil) -- Is empty
 			or (#HttpService:JSONEncode(chunk) < self.ChunkSize) -- Is not full
 		then
+			-- Chunk is available
+			self:_log(1, "Chunk #" .. chunkIndex .. " is available")
 			break
 		end
 
@@ -74,25 +78,46 @@ end
 
 function FreedumbStore:GetChunkIndexOfKey(key: string): number?
 	local keyMap = self._memorystore:GetAsync(self._primaryKey .. "/KeyMap") or {}
+	self:_log(1, "Key is in chunk", keyMap[key] or "[none]")
 	return keyMap[key]
 end
 
-function FreedumbStore:GetChunkAsync(chunkIndex: number): {[any]: any}
+function FreedumbStore:GetChunkAsync(chunkIndex: number, useCache: boolean?): {[any]: any}
+	self:_log(1, "Getting chunk #" .. chunkIndex, "(useCache=" .. tostring(useCache) .. ")")
+	if (useCache ~= false) and (self._cache[chunkIndex] ~= nil) then
+		self:_log(1, "Chunk #" .. chunkIndex .. " is cached")
+		return self._cache[chunkIndex]
+	end
+
 	local location = self._memorystore:GetAsync(self._primaryKey .. "/" .. chunkIndex)
-	return self._datastore:GetAsync(location)
+	if location == nil then
+		-- Chunk does not exist
+		self:_log(1, "Chunk #" .. chunkIndex .. " does not exist")
+		return {}
+	else
+		self:_log(1, "Chunk #" .. chunkIndex .. " is at location '" .. location .. "'")
+	end
+
+	local chunk = self._datastore:GetAsync(location)
+	self._cache[chunkIndex] = chunk
+	return chunk
 end
 
 function FreedumbStore:GetAsync(key: string): any?
+	self:_log(1, "Getting value of key", key)
+
 	-- Get the chunk index this key is in
 	local chunkIndex = self:GetChunkIndexOfKey(key)
 	if chunkIndex == nil then
 		-- Key does not exist
+		self:_log(1, "Key '" .. key .."' does not exist")
 		return nil
 	end
 
 	local chunk = self:GetChunkAsync(chunkIndex)
 	if chunk == nil then
 		-- Chunk does not exist
+		self:_log(1, "Key '" .. key .."' is in chunk #" .. chunkIndex .. ", but that chunk does not exist")
 		return nil
 	end
 
@@ -100,6 +125,8 @@ function FreedumbStore:GetAsync(key: string): any?
 end
 
 function FreedumbStore:GetAllAsync(): {[any]: any}
+	self:_log(1, "Getting entire hashmap")
+
 	local hashmap = {}
 
 	local chunkIndex = 0
@@ -112,6 +139,7 @@ function FreedumbStore:GetAllAsync(): {[any]: any}
 			break
 		end
 
+		self:_log(1, "Merging chunk #" .. chunkIndex .. " into hashmap")
 		for key, value in chunk do
 			if hashmap[key] ~= nil then
 				self:_log(2, "Duplicate key! '" .. tostring(key) .. "'")
@@ -124,8 +152,11 @@ function FreedumbStore:GetAllAsync(): {[any]: any}
 end
 
 function FreedumbStore:SetAsync(key: string, value: any): ()
+	self:_log(1, "Setting key", key, "to value", value)
+
 	-- Get the chunk index this key is in
 	local chunkIndex: number = self:GetChunkIndexOfKey(key) or self:FindAvailableChunkIndex()
+	self:_log(1, "Setting '" .. key .. "' into chunk #" .. chunkIndex)
 
 	-- Put this key-value into the chunk
 	local chunk = self:GetChunkAsync(chunkIndex)
@@ -152,23 +183,32 @@ function FreedumbStore:SetAsync(key: string, value: any): ()
 end
 
 function FreedumbStore:SetChunkAsync(chunkIndex: number, chunk: any): ()
+	self:_log(1, "Setting chunk #" .. chunkIndex)
+
 	local location = HttpService:GenerateGUID(false)
 
 	self._datastore:SetAsync(location, chunk)
-	self._memorystore:SetAsync(self._primaryKey .. "/" .. chunkIndex, location)
+	local trueLocation = self._memorystore:SetAsync(self._primaryKey .. "/" .. chunkIndex, location)
+	self._cache[chunkIndex] = self._datastore:GetAsync(trueLocation)
+
+	self:_log(1, "Chunk #" .. chunkIndex, "is now at location", trueLocation)
 end
 
 function FreedumbStore:UpdateAsync(key: string, callback: (any?) -> any?): any
+	self:_log(1, "Updating key", key)
+
 	local value = self:GetAsync(key)
 	local newValue = callback(value)
 
 	if newValue == nil then
 		-- Update cancelled, still on value
+		self:_log("Update cancelled, still on value")
 		return value
 	end
 
 	if newValue == value then
 		-- No change, still on value
+		self:_log("Update had no change, still on value")
 		return value
 	end
 

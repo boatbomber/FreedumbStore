@@ -1,6 +1,6 @@
 [package]
 name = "boatbomber/freedumbstore"
-description = ""
+description = "A Roblox Datastore wrapper that avoids the limitations by being absolutely ridiculous. Use at your own risk."
 version = "0.1.0"
 license = "MIT"
 authors = ["boatbomber (https://boatbomber.com)"]

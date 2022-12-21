@@ -2,16 +2,17 @@ task.wait(2)
 
 local Packages = game:GetService("ServerStorage"):WaitForChild("Packages")
 local FreedumbStore = require(Packages:WaitForChild("FreedumbStore"))
-local LongTermMemory = require(Packages:WaitForChild("FreedumbStore"):WaitForChild("LongTermMemory"))
 
-local mem = LongTermMemory.new("testName")
+local store = FreedumbStore.new("Data_v1", "Quests")
+store._DEBUG = true
 
-print("startValue", mem:GetAsync("testKey2"))
+print("Before:", store:GetAllAsync())
 
-local newValue = mem:UpdateAsync("testKey2", function(old)
-	return "testValue5"
-end)
-print("updatedValue", newValue)
-print("latestValue", mem:GetAsync("testKey2"))
+for key=1, 10 do
+	store:SetAsync("QuestID"..key, {
+		Name = "Quest #"..key,
+		Description = "This is quest #"..key,
+	})
+end
 
-print("listed", mem:ListKeysAsync())
+print("After:", store:GetAllAsync())

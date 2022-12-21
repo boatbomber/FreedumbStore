@@ -103,7 +103,7 @@ function FreedumbStore:GetChunkAsync(chunkIndex: number, useCache: boolean?): {[
 	return chunk
 end
 
-function FreedumbStore:GetAsync(key: string): any?
+function FreedumbStore:GetAsync(key: string, useCache: boolean?): any?
 	self:_log(1, "Getting value of key", key)
 
 	-- Get the chunk index this key is in
@@ -114,7 +114,7 @@ function FreedumbStore:GetAsync(key: string): any?
 		return nil
 	end
 
-	local chunk = self:GetChunkAsync(chunkIndex)
+	local chunk = self:GetChunkAsync(chunkIndex, useCache ~= false)
 	if chunk == nil then
 		-- Chunk does not exist
 		self:_log(1, "Key '" .. key .."' is in chunk #" .. chunkIndex .. ", but that chunk does not exist")
@@ -124,7 +124,7 @@ function FreedumbStore:GetAsync(key: string): any?
 	return chunk[key]
 end
 
-function FreedumbStore:GetAllAsync(): {[any]: any}
+function FreedumbStore:GetAllAsync(useCache: boolean?): {[any]: any}
 	self:_log(1, "Getting entire hashmap")
 
 	local hashmap = {}
@@ -133,7 +133,7 @@ function FreedumbStore:GetAllAsync(): {[any]: any}
 	while true do
 		chunkIndex += 1
 
-		local chunk = self:GetChunkAsync(chunkIndex)
+		local chunk = self:GetChunkAsync(chunkIndex, useCache ~= false)
 		if (chunk == nil) or (next(chunk) == nil) then
 			-- Chunk does not exist or is empty
 			break

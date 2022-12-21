@@ -18,7 +18,7 @@ function LongTermMemory.new(name: string)
 	end
 
 	local store = setmetatable({
-		_DEBUG = true,
+		_DEBUG = false,
 		_DEBUGID = "LongTermMemory[" .. name .. "]",
 
 		_name = name,

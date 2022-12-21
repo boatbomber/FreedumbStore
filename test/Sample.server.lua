@@ -5,6 +5,7 @@ local FreedumbStore = require(Packages:WaitForChild("FreedumbStore"))
 
 local store = FreedumbStore.new("Data_v1", "Quests")
 store._DEBUG = true
+store._memorystore._DEBUG = true
 
 print("Before:", store:GetAllAsync())
 

@@ -1,0 +1,28 @@
+{
+	"name": "FreedumbStore Test",
+	"tree": {
+		"$className": "DataModel",
+
+		"ServerStorage": {
+			"$className": "ServerStorage",
+			"Packages": {
+				"$className": "Folder",
+				"FreedumbStore": {
+					"$path": "src"
+				}
+			}
+		},
+
+		"ServerScriptService": {
+			"$className": "ServerScriptService",
+			"$path": "test"
+		},
+
+		"Players": {
+			"$className": "Players",
+			"$properties": {
+				"CharacterAutoLoads": false
+			}
+		}
+	}
+}

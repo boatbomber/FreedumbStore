@@ -1,0 +1,16 @@
+# Packages
+Packages/*
+
+# Project build files
+/*.rbxl
+/*.rbxlx
+/*.rbxm
+/*.rbxmx
+/sourcemap.json
+
+# Roblox Studio lock files
+/*.rbxlx.lock
+/*.rbxl.lock
+
+# VS Code files
+.vscode/*

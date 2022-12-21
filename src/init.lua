@@ -159,7 +159,7 @@ function FreedumbStore:SetAsync(key: string, value: any): ()
 	self:_log(1, "Setting '" .. key .. "' into chunk #" .. chunkIndex)
 
 	-- Put this key-value into the chunk
-	local chunk = self:GetChunkAsync(chunkIndex)
+	local chunk = self:GetChunkAsync(chunkIndex, false)
 	chunk[key] = value
 
 	-- Save where this key is

@@ -232,11 +232,33 @@ function FreedumbStore:SetChunkAsync(chunkIndex: number, chunk: any): {[any]: an
 	local location = HttpService:GenerateGUID(false)
 	local sanitizedChunk = Sanitizer:Sanitize(chunk)
 
+	-- Place data inside store at location
 	self:_log(1, "Putting chunk", chunkIndex, "at location", location)
-	self._datastore:SetAsync(location, sanitizedChunk)
+	local function setData()
+		self._datastore:SetAsync(location, sanitizedChunk)
+	end
 
+	local dataSuccess, err = pcall(setData)
+	while not dataSuccess do
+		self:_log(2, "Failed to set chunk", chunkIndex, "at location", location, "with error", err)
+		task.wait(1)
+		self:_log(1, "Retrying...")
+		dataSuccess, err = pcall(setData)
+	end
+
+	-- Update location memory
 	self:_log(1, "Updating chunk", chunkIndex, "location memory to new location")
-	local trueLocation = self._memorystore:SetAsync(chunkIndex, location)
+	local function setLocation()
+		return self._memorystore:SetAsync(chunkIndex, location)
+	end
+
+	local locationSuccess, trueLocation = pcall(setLocation)
+	while not locationSuccess do
+		self:_log(2, "Failed to update chunk", chunkIndex, "location memory to new location with error", trueLocation)
+		task.wait(1)
+		self:_log(1, "Retrying...")
+		locationSuccess, trueLocation = pcall(setLocation)
+	end
 
 	self:_log(1, "Updating cache for chunk", chunkIndex, "from location", trueLocation)
 	self._cache[chunkIndex] = Sanitizer:Desanitize(self._datastore:GetAsync(trueLocation))

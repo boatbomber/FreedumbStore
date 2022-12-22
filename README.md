@@ -138,7 +138,7 @@ function FreedumbStore:AquireLock(chunkIndex: number): ()
 function FreedumbStore:ReleaseLock(chunkIndex: number): ()
 ```
 
-[INTERNAL] Releases the glboal lock to that chunk, if we have it.
+[INTERNAL] Releases the global lock to that chunk, if we have it.
 
 ## Budget
 

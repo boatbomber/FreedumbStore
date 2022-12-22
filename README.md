@@ -39,6 +39,21 @@ print("Trade 25:", trade25)
 print("All Trades:", Store:GetAllAsync())
 ```
 
+## Installation
+
+Wally:
+
+```toml
+[server-dependencies]
+FreedumbStore = "boatbomber/freedumbstore@0.2.0"
+```
+
+Rojo:
+
+```bash
+rojo build default.project.json -o FreedumbStore.rbxm
+```
+
 ## API
 
 ```Lua

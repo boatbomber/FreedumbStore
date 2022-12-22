@@ -83,6 +83,12 @@ function LongTermMemory:UpdateAsync(key: string, callback: (any?) -> any?): any?
 			return nil
 		end
 
+		if newValue == oldValue then
+			-- Value is the same, cancel this
+			exitValue = newValue
+			return nil
+		end
+
 		exitValue = newValue
 		return {
 			Value = newValue,
@@ -106,6 +112,12 @@ function LongTermMemory:SetAsync(key: string, value: any): any
 		if old and old.Timestamp > timestamp then
 			-- Stored is more recent, cancel this
 			exitValue = old.Value
+			return nil
+		end
+
+		if old.Value == value then
+			-- Value is the same, cancel this
+			exitValue = value
 			return nil
 		end
 

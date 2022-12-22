@@ -41,13 +41,13 @@ function LongTermMemory:GetAsync(key: string): any?
 	local fromMemory = self._memorystore:GetAsync(key)
 	if fromMemory ~= nil then
 		self:_log(1, "Got", key, "from memory")
-		return fromMemory.Value
+		return fromMemory.v
 	end
 
 	local fromData = self._datastore:GetAsync(key)
 	if fromData ~= nil then
 		self:_log(1, "Got", key, "from datastore")
-		return fromData.Value
+		return fromData.v
 	end
 
 	return nil
@@ -68,9 +68,9 @@ function LongTermMemory:UpdateAsync(key: string, callback: (any?) -> any?): any?
 			self:_log(1, "Got", key, "from datastore during update since it was not in memory")
 		end
 
-		local oldValue = if old then old.Value else nil
+		local oldValue = if old then old.v else nil
 
-		if old and old.Timestamp > timestamp then
+		if old and old.t > timestamp then
 			-- Stored is more recent, cancel this
 			exitValue = oldValue
 			return nil
@@ -91,8 +91,8 @@ function LongTermMemory:UpdateAsync(key: string, callback: (any?) -> any?): any?
 
 		exitValue = newValue
 		return {
-			Value = newValue,
-			Timestamp = timestamp,
+			v = newValue,
+			t = timestamp,
 		}
 	end, 3_888_000)
 
@@ -109,22 +109,19 @@ function LongTermMemory:SetAsync(key: string, value: any): any
 			self:_log(1, "Got", key, "from datastore during set since it was not in memory")
 		end
 
-		if old and old.Timestamp > timestamp then
-			-- Stored is more recent, cancel this
-			exitValue = old.Value
-			return nil
+		if old ~= nil then
+			if (old.t > timestamp) or (old.v == value) then
+				-- Stored is more recent or unchanged, cancel this
+				exitValue = old.Value
+				return nil
+			end
 		end
 
-		if old.Value == value then
-			-- Value is the same, cancel this
-			exitValue = value
-			return nil
-		end
-
+		self:_log(1, "Set memory for", key, "to", value)
 		exitValue = value
 		return {
-			Value = value,
-			Timestamp = timestamp,
+			v = value,
+			t = timestamp,
 		}
 	end, 3_888_000)
 

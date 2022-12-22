@@ -2,14 +2,14 @@ task.wait(2)
 
 local Packages = game:GetService("ServerStorage"):WaitForChild("Packages")
 local FreedumbStore = require(Packages:WaitForChild("FreedumbStore"))
-local Store = FreedumbStore.new("Data_v1.0", "Trades")
+local Store = FreedumbStore.new("Data_v2.0", "Trades")
 -- In datastore Data_v1 at the key Trades, we're gonna fill a giant dictionary
 
 -- We can flip on some debug prints if we want
 Store._DEBUG = true
 Store._memorystore._DEBUG = true
 
-for ID=1, 100 do
+for ID=1, 50 do
 	-- Create tons of random data
 	local data = table.create(ID*4096)
 	for i=1, ID*4096 do
@@ -20,10 +20,10 @@ for ID=1, 100 do
 	print("Storing trade #" .. ID)
 	Store:SetAsync("TradeID-" .. ID, {
 		TradeData = data,
+		Position = Vector3.new(math.random(100), math.random(100), math.random(100)),
 	})
 end
 
-local trade50 = Store:GetAsync("TradeID-50")
-print("Trade 50:", trade50)
-
+local trade25 = Store:GetAsync("TradeID-25")
+print("Trade 25:", trade25)
 print("All Trades:", Store:GetAllAsync())

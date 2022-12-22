@@ -2,7 +2,7 @@
 
 A Roblox Datastore wrapper that avoids the limitations by being absolutely ridiculous. Use at your own risk.
 
-This system avoids the 6 second cooldown, and avoids the 4MB limit. Store massive tables and update them rapidly!
+This system avoids the 6 second cooldown, bypasses the 4MB limit, and allows you to store Roblox datatypes like Vector3 and CFrame. Store massive tables of Roblox datatypes and update them rapidly!
 (This is a bad idea, don't actually do that. Use responsibly.)
 
 ## Example
@@ -16,7 +16,7 @@ local Store = FreedumbStore.new("Data_v1", "Trades")
 -- Store._DEBUG = true
 -- Store._memorystore._DEBUG = true
 
-for ID=1, 100 do
+for ID=1, 50 do
 	-- Create tons of random data
 	local data = table.create(ID*4096)
 	for i=1, ID*4096 do
@@ -26,13 +26,15 @@ for ID=1, 100 do
 
 	print("Storing trade #" .. ID)
 	Store:SetAsync("TradeID-" .. ID, {
+		-- Store massive data
 		TradeData = data,
+		-- Store non-JSON compatible data
+		Position = Vector3.new(math.random(100), math.random(100), math.random(100)),
 	})
 end
 
-local trade50 = Store:GetAsync("TradeID-50")
-print("Trade 50:", trade50)
-
+local trade25 = Store:GetAsync("TradeID-25")
+print("Trade 25:", trade25)
 print("All Trades:", Store:GetAllAsync())
 ```
 

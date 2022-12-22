@@ -10,6 +10,7 @@
 local HttpService = game:GetService("HttpService")
 local DataStoreService = game:GetService("DataStoreService")
 local LongTermMemory = require(script:WaitForChild("LongTermMemory"))
+local Sanitizer = require(script:WaitForChild("Sanitizer"))
 
 local FreedumbStore = {
 	_storeCache = {},
@@ -105,7 +106,7 @@ function FreedumbStore:GetChunkAsync(chunkIndex: number, useCache: boolean?): {[
 		self:_log(1, "Chunk", chunkIndex, "is at location '" .. location .. "'")
 	end
 
-	local chunk = self._datastore:GetAsync(location)
+	local chunk = Sanitizer:Desanitize(self._datastore:GetAsync(location))
 	self._cache[chunkIndex] = chunk
 	return chunk
 end
@@ -193,15 +194,16 @@ function FreedumbStore:SetChunkAsync(chunkIndex: number, chunk: any): ()
 	self:_log(1, "Setting chunk", chunkIndex)
 
 	local location = HttpService:GenerateGUID(false)
+	local sanitizedChunk = Sanitizer:Sanitize(chunk)
 
 	self:_log(1, "Putting chunk", chunkIndex, "at location", location)
-	self._datastore:SetAsync(location, chunk)
+	self._datastore:SetAsync(location, sanitizedChunk)
 
 	self:_log(1, "Updating chunk", chunkIndex, "location memory to new location")
 	local trueLocation = self._memorystore:SetAsync(self._primaryKey .. "/" .. chunkIndex, location)
 
 	self:_log(1, "Updating cache for chunk", chunkIndex, "from location", trueLocation)
-	self._cache[chunkIndex] = self._datastore:GetAsync(trueLocation)
+	self._cache[chunkIndex] = Sanitizer:Desanitize(self._datastore:GetAsync(trueLocation))
 end
 
 function FreedumbStore:UpdateAsync(key: string, callback: (any?) -> any?): any

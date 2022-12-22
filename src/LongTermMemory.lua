@@ -119,46 +119,6 @@ function LongTermMemory:SetAsync(key: string, value: any): any
 	return exitValue
 end
 
-function LongTermMemory:ListKeysAsync(): {string}
-	local keys, keysSet = {}, {}
-
-	-- Get all keys from MemoryStore
-	local exclusiveLowerBound = nil
-	while true do
-		local items = self._memorystore:GetRangeAsync(Enum.SortDirection.Ascending, 200, exclusiveLowerBound)
-		for _, item in ipairs(items) do
-			if keysSet[item.key] then continue end
-
-			table.insert(keys, item.key)
-			keysSet[item.key] = true
-			self:_log(1, "Listed key", item.key, "from memory")
-		end
-
-		-- If the call returned less than requested amount, we’ve reached the end of the map
-		if #items < 200 then
-			break
-		end
-		-- Last retrieved key is the exclusive lower bound for the next iteration
-		exclusiveLowerBound = items[#items].key
-	end
-
-	-- Get all keys from DataStore
-	local keyPages = self._datastore:ListKeysAsync()
-	while not keyPages.IsFinished do
-		local currentPage = keyPages:GetCurrentPage()
-		for _, item in currentPage do
-			if keysSet[item.KeyName] then continue end
-
-			table.insert(keys, item.KeyName)
-			keysSet[item.KeyName] = true
-			self:_log(1, "Listed key", item.KeyName, "from datastore")
-		end
-		keyPages:AdvanceToNextPageAsync()
-	end
-
-	return keys
-end
-
 function LongTermMemory:Backup()
 	local exclusiveLowerBound = nil
 	while true do

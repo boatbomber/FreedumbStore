@@ -59,6 +59,12 @@ function FreedumbStore:_log(logLevel, ...): ()
 	end
 end
 
+function FreedumbStore:_setDebug(enabled: boolean): ()
+	self._DEBUG = enabled
+	self._memorystore._DEBUG = enabled
+	self._keymap._DEBUG = enabled
+end
+
 function FreedumbStore:ClearCache(): ()
 	self:_log(1, "Clearing cache")
 	self._cache = {}

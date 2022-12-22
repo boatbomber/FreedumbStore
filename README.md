@@ -10,12 +10,11 @@ Store massive tables of Roblox datatypes and update them rapidly! *(This is a ba
 
 ```Lua
 local FreedumbStore = require(Packages.FreedumbStore)
-local Store = FreedumbStore.new("Data_v1", "Trades")
--- In datastore Data_v1 at the key Trades, we're gonna fill a giant dictionary
+local Store = FreedumbStore.new("AuctionHouse_V0.1.0", "Trades")
+-- In datastore AuctionHouse_V0.1.0 at the key Trades, we're gonna fill a giant dictionary
 
 -- We can flip on some debug prints if we want
--- Store._DEBUG = true
--- Store._memorystore._DEBUG = true
+Store:_setDebug(true)
 
 for ID=1, 50 do
 	-- Create tons of random data
@@ -27,9 +26,7 @@ for ID=1, 50 do
 
 	print("Storing trade #" .. ID)
 	Store:SetAsync("TradeID-" .. ID, {
-		-- Store massive data
 		TradeData = data,
-		-- Store non-JSON compatible data
 		Position = Vector3.new(math.random(100), math.random(100), math.random(100)),
 	})
 end

@@ -83,7 +83,7 @@ function FreedumbStore:FindAvailableChunkIndex(): number
 end
 
 function FreedumbStore:GetChunkIndexOfKey(key: string): number?
-	local keyMap = self._memorystore:GetAsync(self._primaryKey .. "/KeyMap") or {}
+	local keyMap = self._datastore:GetAsync(self._primaryKey .. "/KeyMap") or {}
 	local chunkIndex = keyMap[key]
 	self:_log(1, "Key is in chunk", chunkIndex or "[none]")
 	return chunkIndex
@@ -170,7 +170,7 @@ function FreedumbStore:SetAsync(key: string, value: any): ()
 	chunk[key] = value
 
 	-- Save where this key is
-	self._memorystore:UpdateAsync(self._primaryKey .. "/KeyMap", function(keyMap)
+	self._datastore:UpdateAsync(self._primaryKey .. "/KeyMap", function(keyMap)
 		keyMap = keyMap or {}
 		keyMap[key] = chunkIndex
 		return keyMap

@@ -37,8 +37,8 @@ function FreedumbStore.new(name: string, primaryKey: string)
 		_locks = {},
 
 		_datastore = DataStoreService:GetDataStore(name),
-		_memorystore = LongTermMemory.new(name .. "/" .. primaryKey .. "/Memory"),
-		_keymap = LongTermMemory.new(name .. "/" .. primaryKey .. "/KeyMap"),
+		_memorystore = LongTermMemory.new(name .. "/" .. primaryKey .. "/Mem"),
+		_keymap = LongTermMemory.new(name .. "/" .. primaryKey .. "/Keys"),
 		_lockstore = MemoryStoreService:GetSortedMap(name .. "/" .. primaryKey .. "/Locks"),
 	}, FreedumbStore)
 	FreedumbStore._storeCache[name][primaryKey] = store

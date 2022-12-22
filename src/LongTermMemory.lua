@@ -6,6 +6,9 @@
 
 local DataStoreService = game:GetService("DataStoreService")
 local MemoryStoreService = game:GetService("MemoryStoreService")
+local MessagingService = game:GetService("MessagingService")
+
+local MSG_ID = "LongTermMemoryEvents"
 
 local LongTermMemory = {}
 LongTermMemory.__index = LongTermMemory
@@ -25,6 +28,9 @@ function LongTermMemory.new(name: string)
 		_datastore = DataStoreService:GetDataStore(name),
 		_memorystore = MemoryStoreService:GetSortedMap(name),
 
+		_cache = {},
+		_cacheExpirations = {},
+
 		Expiration = 3_800_000,
 	}, LongTermMemory)
 	LongTermMemory._storeCache[name] = store
@@ -39,16 +45,61 @@ function LongTermMemory:_log(logLevel, ...): ()
 	end
 end
 
+function LongTermMemory:CacheLocally(key: string, value: any?, expiration: number): ()
+	self._cache[key] = value
+	if self._cacheExpirations[key] then
+		task.cancel(self._cacheExpirations[key])
+		self._cacheExpirations[key] = nil
+	end
+	self._cacheExpirations[key] = task.delay(expiration, function()
+		if self._cache[key] == value then
+			self._cache[key] = nil
+		end
+		self._cacheExpirations[key] = nil
+	end)
+end
+
+function LongTermMemory:ClearCacheLocally(key: string): ()
+	self._cache[key] = nil
+	if self._cacheExpirations[key] then
+		task.cancel(self._cacheExpirations[key])
+		self._cacheExpirations[key] = nil
+	end
+end
+
+function LongTermMemory:SendMessage(message: {[any]: any}): ()
+	message.jobId = game.JobId
+	message.store = self._name
+
+	task.spawn(MessagingService.PublishAsync, MessagingService, MSG_ID, message)
+end
+
+function LongTermMemory:ReceiveMessage(message): ()
+	self:_log(1, "Received message:", message)
+	if message.action == "cacheClear" then
+		self:ClearCacheLocally(message.key)
+	else
+		self:_log(2, "Unknown message action:", message.action)
+	end
+end
+
 function LongTermMemory:GetAsync(key: string): any?
+	if self._cache[key] ~= nil then
+		self:_log(1, "Got", key, "from cache")
+		return self._cache[key]
+	end
+
 	local fromMemory = self._memorystore:GetAsync(key)
 	if fromMemory ~= nil then
 		self:_log(1, "Got", key, "from memory")
+		self:CacheLocally(key, fromMemory.v, 1800)
 		return fromMemory.v
 	end
 
 	local fromData = self._datastore:GetAsync(key)
 	if fromData ~= nil then
 		self:_log(1, "Got", key, "from datastore")
+		self:CacheLocally(key, fromData.v, 1800)
 		return fromData.v
 	end
 
@@ -91,6 +142,12 @@ function LongTermMemory:UpdateAsync(key: string, callback: (any?) -> any?, expir
 			return nil
 		end
 
+		self:SendMessage({
+			action = "cacheClear",
+			key = key,
+		})
+
+		self:_log(1, "Updated memory for", key, "to", newValue)
 		exitValue = newValue
 		return {
 			v = newValue,
@@ -98,6 +155,7 @@ function LongTermMemory:UpdateAsync(key: string, callback: (any?) -> any?, expir
 		}
 	end, expiration or self.Expiration)
 
+	self:CacheLocally(key, exitValue, 1800)
 	return exitValue
 end
 
@@ -119,6 +177,11 @@ function LongTermMemory:SetAsync(key: string, value: any, expiration: number?): 
 			end
 		end
 
+		self:SendMessage({
+			action = "cacheClear",
+			key = key,
+		})
+
 		self:_log(1, "Set memory for", key, "to", value)
 		exitValue = value
 		return {
@@ -127,6 +190,7 @@ function LongTermMemory:SetAsync(key: string, value: any, expiration: number?): 
 		}
 	end, expiration or self.Expiration)
 
+	self:CacheLocally(key, exitValue, 1800)
 	return exitValue
 end
 
@@ -137,6 +201,7 @@ function LongTermMemory:Backup()
 		for _, item in ipairs(items) do
 			self:_log(1, "Backing up", "['" .. tostring(item.key) .. "'] =", item.value)
 			self._datastore:SetAsync(item.key, item.value)
+			self:CacheLocally(item.key, item.value.v, 1800)
 		end
 
 		-- If the call returned less than requested amount, we’ve reached the end of the map
@@ -157,8 +222,43 @@ function LongTermMemory:Destroy()
 	table.clear(self)
 end
 
--- Periodically backup
+
 task.defer(function()
+	-- Connect to events
+	local subscribeSuccess, subscribeConnection = pcall(function()
+		return MessagingService:SubscribeAsync(MSG_ID, function(message)
+			local data = message.Data
+			if data.jobId == game.JobId then
+				-- Ignore messages from self
+				return
+			end
+
+			local store = LongTermMemory._storeCache[data.store]
+			if not store then
+				-- Ignore messages for stores we don't have
+				return
+			end
+
+			store:ReceiveMessage(data)
+		end)
+	end)
+	if not subscribeSuccess then
+		warn("Failed to subscribe to LongTermMemoryEvents")
+		return
+	end
+
+	-- Disconnect and Backup on close
+	game:BindToClose(function()
+		if subscribeSuccess and subscribeConnection then
+			subscribeConnection:Disconnect()
+		end
+
+		for _name, store in LongTermMemory._storeCache do
+			store:Backup()
+		end
+	end)
+
+	-- Periodically backup
 	while true do
 		task.wait(120)
 		for _name, store in LongTermMemory._storeCache do
@@ -167,11 +267,6 @@ task.defer(function()
 	end
 end)
 
--- Backup on close
-game:BindToClose(function()
-	for _name, store in LongTermMemory._storeCache do
-		store:Backup()
-	end
-end)
+
 
 return LongTermMemory

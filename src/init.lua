@@ -43,6 +43,8 @@ function FreedumbStore.new(name: string, primaryKey: string)
 	}, FreedumbStore)
 	FreedumbStore._storeCache[name][primaryKey] = store
 
+	store._keymap.Expiration = 600_000 -- ~1 week cache time
+
 	store:_log(1, "Initialized!")
 
 	return store

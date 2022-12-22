@@ -24,6 +24,8 @@ function LongTermMemory.new(name: string)
 		_name = name,
 		_datastore = DataStoreService:GetDataStore(name),
 		_memorystore = MemoryStoreService:GetSortedMap(name),
+
+		Expiration = 3_800_000,
 	}, LongTermMemory)
 	LongTermMemory._storeCache[name] = store
 
@@ -58,7 +60,7 @@ function LongTermMemory:RemoveAsync(key: string): ()
 	self._datastore:RemoveAsync(key)
 end
 
-function LongTermMemory:UpdateAsync(key: string, callback: (any?) -> any?): any?
+function LongTermMemory:UpdateAsync(key: string, callback: (any?) -> any?, expiration: number?): any?
 	local timestamp = DateTime.now().UnixTimestampMillis
 	local exitValue = nil
 
@@ -94,12 +96,12 @@ function LongTermMemory:UpdateAsync(key: string, callback: (any?) -> any?): any?
 			v = newValue,
 			t = timestamp,
 		}
-	end, 3_888_000)
+	end, expiration or self.Expiration)
 
 	return exitValue
 end
 
-function LongTermMemory:SetAsync(key: string, value: any): any
+function LongTermMemory:SetAsync(key: string, value: any, expiration: number?): any
 	local timestamp = DateTime.now().UnixTimestampMillis
 	local exitValue = nil
 
@@ -123,7 +125,7 @@ function LongTermMemory:SetAsync(key: string, value: any): any
 			v = value,
 			t = timestamp,
 		}
-	end, 3_888_000)
+	end, expiration or self.Expiration)
 
 	return exitValue
 end

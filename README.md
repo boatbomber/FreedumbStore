@@ -2,8 +2,9 @@
 
 A Roblox Datastore wrapper that avoids the limitations by being absolutely ridiculous. Use at your own risk.
 
-This system avoids the 6 second cooldown, bypasses the 4MB limit, and allows you to store Roblox datatypes like Vector3 and CFrame. Store massive tables of Roblox datatypes and update them rapidly!
-(This is a bad idea, don't actually do that. Use responsibly.)
+This system avoids the 6 second cooldown (key hopping), bypasses the 4MB limit (auto-chunking), supports storing Roblox datatypes like Vector3 & Color3 (serializing), and allows you to write from multiple servers at once (atomic locking).
+
+Store massive tables of Roblox datatypes and update them rapidly! *(This is a bad idea, don't actually do that. Use responsibly.)*
 
 ## Example
 
@@ -89,16 +90,40 @@ function FreedumbStore:SetChunkAsync(chunkIndex: number, chunk: any): ()
 [BE CAREFUL WITH THIS] Sets the entire chunk.
 
 ```Lua
+function FreedumbStore:UpdateChunkAsync(chunkIndex: number, callback: (any?) -> any?): ()
+```
+
+Update an entire chunk.
+
+```Lua
 function FreedumbStore:GetChunkIndexOfKey(key: string): number?
 ```
 
 [INTERNAL] Returns the chunk index that a given key is stored in, if exists.
 
 ```Lua
+function FreedumbStore:SetChunkIndexOfKey(key: string, chunkIndex: number): ()
+```
+
+[INTERNAL] Sets the chunk index that the given key is stored in.
+
+```Lua
 function FreedumbStore:FindAvailableChunkIndex(): number
 ```
 
 [INTERNAL]  Returns the first chunk index that is not full.
+
+```Lua
+function FreedumbStore:AquireLock(chunkIndex: number): ()
+```
+
+[INTERNAL] Aquires the global lock for writing to that chunk. Yields until lock is received.
+
+```Lua
+function FreedumbStore:ReleaseLock(chunkIndex: number): ()
+```
+
+[INTERNAL] Releases the glboal lock to that chunk, if we have it.
 
 ## Budget
 
@@ -110,15 +135,19 @@ Read the budget [here](https://create.roblox.com/docs/scripting/data/data-stores
 
 *A is available chunks, C is used chunks, / is or (lower in MemoryStore, higher when reaching over to DataStore)*
 
-| Function   | Gets  | Sets  |
-|-----------:|:------|:------|
-|new|0|0|
-|ClearCache|0|0|
-|FindAvailableChunkIndex|1+A|0|
-|GetChunkIndexOfKey|1|0|
-|GetChunkAsync|2/3|0|
-|GetAsync|3/4|0|
-|GetAllAsync|2/3*(C+1)|0|
-|SetAsync|5/6+A|2|
-|SetChunkAsync|1|2|
-|UpdateAsync|8/10+A|2|
+| Function   | Datastore Gets  | Datastore Sets | Memorystore Gets | Memorystore Sets  |
+|-----------:|:------|:------|:------|:------|
+|new|0|0|0|0|
+|ClearCache|0|0|0|0|
+|FindAvailableChunkIndex|1/2*A|0|1+A|0|
+|AquireLock|0|0|1+?|1|
+|ReleaseLock|0|0|0|1|
+|GetChunkIndexOfKey|0/1|0|1|0|
+|SetChunkIndexOfKey|0|0|0|1|0/1|
+|GetChunkAsync|1/2|0|1|0|
+|GetAsync|1/3|0|2|0|
+|GetAllAsync|1/2*(1+C)|0|1+C|0|
+|SetChunkAsync|1|1|1|1/2|
+|UpdateChunkAsync|2/3|1|3+?|3/4|
+|SetAsync|3/5*A|1|5+A+?|3/5|
+|UpdateAsync|3/5*A|1|5+A+?|3/5|

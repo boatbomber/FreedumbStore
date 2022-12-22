@@ -38,6 +38,7 @@ function FreedumbStore.new(name: string, primaryKey: string)
 
 		_datastore = DataStoreService:GetDataStore(name),
 		_memorystore = LongTermMemory.new(name .. "/" .. primaryKey .. "/Memory"),
+		_keymap = LongTermMemory.new(name .. "/" .. primaryKey .. "/KeyMap"),
 		_lockstore = MemoryStoreService:GetSortedMap(name .. "/" .. primaryKey .. "/Locks"),
 	}, FreedumbStore)
 	FreedumbStore._storeCache[name][primaryKey] = store
@@ -135,23 +136,14 @@ function FreedumbStore:FindAvailableChunkIndex(): number
 end
 
 function FreedumbStore:GetChunkIndexOfKey(key: string): number?
-	local keyMap = self._memorystore:GetAsync("KeyMap") or {}
-	local chunkIndex = keyMap[key]
+	local chunkIndex = self._keymap:GetAsync(key)
 	self:_log(1, "Key is in chunk", chunkIndex or "[none]")
 	return chunkIndex
 end
 
 function FreedumbStore:SetChunkIndexOfKey(key: string, chunkIndex: number): ()
-	self._memorystore:UpdateAsync("KeyMap", function(keyMap)
-		keyMap = keyMap or {}
-		if keyMap[key] == chunkIndex then
-			-- No change needed
-			return nil
-		end
-		self:_log(1, "Key", key, "is mapped to chunk", chunkIndex)
-		keyMap[key] = chunkIndex
-		return keyMap
-	end)
+	self._keymap:SetAsync(key, chunkIndex)
+	self:_log(1, "Key is now mapped to chunk", chunkIndex)
 end
 
 function FreedumbStore:GetChunkAsync(chunkIndex: number, useCache: boolean?): {[any]: any}

@@ -102,7 +102,7 @@ function FreedumbStore:FindAvailableChunkIndex(): number
 
 You'll still need to respect the total calls budget, sadly. Can't be truly free.
 
-Read the budget [here](https://create.roblox.com/docs/scripting/data/data-stores#limits) or wherever Roblox moved the docs to by the time you read this.
+Read the budget [here](https://create.roblox.com/docs/scripting/data/data-stores#limits) and [here](https://create.roblox.com/docs/scripting/data/memory-stores#limits) or wherever Roblox moved the docs to by the time you read this.
 
 **Budget Cost per function:**
 

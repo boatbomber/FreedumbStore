@@ -2,7 +2,7 @@ task.wait(2)
 
 local Packages = game:GetService("ServerStorage"):WaitForChild("Packages")
 local FreedumbStore = require(Packages:WaitForChild("FreedumbStore"))
-local Store = FreedumbStore.new("AuctionHouse_V0.1.0", "Trades")
+local Store = FreedumbStore.new("AuctionHouse_V0.1.1", "Trades")
 -- In datastore AuctionHouse_V0.1.0 at the key Trades, we're gonna fill a giant dictionary
 
 -- We can flip on some debug prints if we want

@@ -46,6 +46,7 @@ function LongTermMemory:_log(logLevel, ...): ()
 end
 
 function LongTermMemory:CacheLocally(key: string, value: any?, expiration: number): ()
+	self:_log(1, "Setting local cache for", key, "for", expiration, "seconds")
 	self._cache[key] = value
 	if self._cacheExpirations[key] then
 		task.cancel(self._cacheExpirations[key])
@@ -54,12 +55,14 @@ function LongTermMemory:CacheLocally(key: string, value: any?, expiration: numbe
 	self._cacheExpirations[key] = task.delay(expiration, function()
 		if self._cache[key] == value then
 			self._cache[key] = nil
+			self:_log(1, "Expired local cache for", key, "after", expiration, "seconds")
 		end
 		self._cacheExpirations[key] = nil
 	end)
 end
 
 function LongTermMemory:ClearCacheLocally(key: string): ()
+	self:_log(1, "Clearing local cache for", key)
 	self._cache[key] = nil
 	if self._cacheExpirations[key] then
 		task.cancel(self._cacheExpirations[key])
@@ -70,6 +73,8 @@ end
 function LongTermMemory:SendMessage(message: {[any]: any}): ()
 	message.jobId = game.JobId
 	message.store = self._name
+
+	self:_log(1, "Sending message:", message)
 
 	task.spawn(MessagingService.PublishAsync, MessagingService, MSG_ID, message)
 end

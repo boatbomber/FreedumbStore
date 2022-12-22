@@ -97,3 +97,26 @@ function FreedumbStore:FindAvailableChunkIndex(): number
 ```
 
 [INTERNAL]  Returns the first chunk index that is not full.
+
+## Budget
+
+You'll still need to respect the total calls budget, sadly. Can't be truly free.
+
+Read the budget [here](https://create.roblox.com/docs/scripting/data/data-stores#limits) or wherever Roblox moved the docs to by the time you read this.
+
+**Budget Cost per function:**
+
+*A is available chunks, C is used chunks, / is or (lower in MemoryStore, higher when reaching over to DataStore)*
+
+| Function   | Gets  | Sets  |
+|-----------:|:------|:------|
+|new|0|0|
+|ClearCache|0|0|
+|FindAvailableChunkIndex|1+A|0|
+|GetChunkIndexOfKey|1|0|
+|GetChunkAsync|2/3|0|
+|GetAsync|3/4|0|
+|GetAllAsync|2/3*(C+1)|0|
+|SetAsync|5/6+A|2|
+|SetChunkAsync|1|2|
+|UpdateAsync|8/10+A|2|

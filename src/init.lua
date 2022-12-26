@@ -359,4 +359,34 @@ function FreedumbStore:UpdateAsync(key: string, callback: (any?) -> any?): any
 	return exitValue
 end
 
+function FreedumbStore:RemoveAsync(key: string): boolean
+	--[[ Note:
+		In theory, we could rebalance the chunks here (ie. move keys around to fill in gaps)
+		but that would cost a lot of budget and it just doesn't matter all that much.
+		Old chunks with removed keys might be smaller than full chunks, but that's fine.
+	--]]
+
+	-- Get the chunk index this key is in
+	local chunkIndex = self:GetChunkIndexOfKey(key)
+	if chunkIndex == nil then
+		self:_log(2, "Cannot remove key", key, "because it does not exist")
+		return false
+	end
+
+	-- Update the chunk and remove the key
+	self:UpdateChunkAsync(chunkIndex, function(chunk)
+		if chunk == nil then
+			return nil
+		end
+
+		chunk[key] = nil
+		return chunk
+	end)
+
+	-- Remove where this key is
+	self._keymap:RemoveAsync(key)
+
+	return true
+end
+
 return FreedumbStore

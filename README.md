@@ -42,7 +42,7 @@ Wally:
 
 ```toml
 [server-dependencies]
-FreedumbStore = "boatbomber/freedumbstore@0.2.3"
+FreedumbStore = "boatbomber/freedumbstore@0.2.4"
 ```
 
 Rojo:
@@ -94,6 +94,12 @@ function FreedumbStore:UpdateAsync(key: string, callback: (oldValue: any?) -> an
 ```
 
 Update the value at that key of the table.
+
+```Lua
+function FreedumbStore:RemoveAsync(key: string): boolean
+```
+
+Removes a key and its value from the table. Returns a success boolean.
 
 ```Lua
 function FreedumbStore:SetChunkAsync(chunkIndex: number, chunk: any): ()

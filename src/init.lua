@@ -260,8 +260,14 @@ function FreedumbStore:SetChunkAsync(chunkIndex: number, chunk: any): {[any]: an
 		locationSuccess, trueLocation = pcall(setLocation)
 	end
 
-	self:_log(1, "Updating cache for chunk", chunkIndex, "from location", trueLocation)
-	self._cache[chunkIndex] = Sanitizer:Desanitize(self._datastore:GetAsync(trueLocation))
+	if trueLocation ~= location then
+		self:_log(2, "Chunk", chunkIndex, "location was moved to", trueLocation, "while we were setting it to", location)
+		self:_log(1, "Updating cache for chunk", chunkIndex, "from true location", trueLocation)
+		self._cache[chunkIndex] = Sanitizer:Desanitize(self._datastore:GetAsync(trueLocation))
+	else
+		self:_log(1, "Updating cache for chunk", chunkIndex, "from local set")
+		self._cache[chunkIndex] = chunk
+	end
 
 	-- Update top chunk if needed
 	self._memorystore:UpdateAsync("TopChunk", function(topChunk)

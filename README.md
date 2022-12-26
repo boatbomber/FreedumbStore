@@ -151,7 +151,7 @@ Read the budget [here](https://create.roblox.com/docs/scripting/data/data-stores
 
 **Budget Cost per function:**
 
-*A is available chunks, C is used chunks, / is or (lower in MemoryStore, higher when reaching over to DataStore)*
+*A is available chunks, C is used chunks, / is BestCase/WorstCase*
 
 | Function   | Datastore Gets  | Datastore Sets | Memorystore Gets | Memorystore Sets  |
 |-----------:|:------|:------|:------|:------|
@@ -169,3 +169,4 @@ Read the budget [here](https://create.roblox.com/docs/scripting/data/data-stores
 |UpdateChunkAsync|2/3|1|3+?|3/4|
 |SetAsync|3/5*A|1|5+A+?|3/5|
 |UpdateAsync|3/5*A|1|5+A+?|3/5|
+|RemoveAsync|2/4|1|4+?|4/5|

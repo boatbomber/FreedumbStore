@@ -336,14 +336,14 @@ function FreedumbStore:UpdateAsync(key: string, callback: (any?) -> any?): any
 
 		if newValue == nil then
 			-- Update cancelled, still on value
-			self:_log("Update cancelled, still on value")
+			self:_log(1, "Update cancelled, still on value")
 			exitValue = value
 			return nil
 		end
 
 		if newValue == value then
 			-- No change, still on value
-			self:_log("Update had no change, still on value")
+			self:_log(1, "Update had no change, still on value")
 			exitValue = value
 			return nil
 		end

@@ -60,7 +60,6 @@ function FreedumbStore:Destroy()
 
 	setmetatable(self, nil)
 
-	self._datastore:Destroy()
 	self._memorystore:Destroy()
 	self._keymap:Destroy()
 	self._lockstore:Destroy()

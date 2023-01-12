@@ -223,7 +223,7 @@ function LongTermMemory:Destroy()
 	LongTermMemory._storeCache[self._name] = nil
 	self:Backup()
 	self._memorystore:Destroy()
-	self._datastore:Destroy()
+	setmetatable(self, nil)
 	table.clear(self)
 end
 

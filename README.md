@@ -42,7 +42,7 @@ Wally:
 
 ```toml
 [server-dependencies]
-FreedumbStore = "boatbomber/freedumbstore@0.2.5"
+FreedumbStore = "boatbomber/freedumbstore@0.2.6"
 ```
 
 Rojo:
@@ -58,6 +58,12 @@ function FreedumbStore.new(name: string, primaryKey: string): FreedomStore
 ```
 
 Returns a new FreedumbStore.
+
+```Lua
+function FreedumbStore:Destroy(): ()
+```
+
+Destroys the FreedumbStore. Will yield before destroying if there's a write operation in-progress when called.
 
 ```Lua
 function FreedumbStore:GetAsync(key: string, useCache: boolean?): any?

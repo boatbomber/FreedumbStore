@@ -50,6 +50,24 @@ function FreedumbStore.new(name: string, primaryKey: string)
 	return store
 end
 
+function FreedumbStore:Destroy()
+	FreedumbStore._storeCache[self._name][self._primaryKey] = nil
+
+	while next(self._locks) ~= nil do
+		-- We're in middle of something, don't destroy yet
+		task.wait()
+	end
+
+	setmetatable(self, nil)
+
+	self._datastore:Destroy()
+	self._memorystore:Destroy()
+	self._keymap:Destroy()
+	self._lockstore:Destroy()
+
+	table.clear(self)
+end
+
 local logLevels = {print, warn, error}
 function FreedumbStore:_log(logLevel, ...): ()
 	if self._DEBUG then

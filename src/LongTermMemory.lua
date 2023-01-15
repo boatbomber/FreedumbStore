@@ -30,6 +30,7 @@ function LongTermMemory.new(name: string)
 
 		_cache = {},
 		_cacheExpirations = {},
+		_lastBackup = 0,
 
 		Expiration = 3_800_000,
 	}, LongTermMemory)
@@ -200,6 +201,13 @@ function LongTermMemory:SetAsync(key: string, value: any, expiration: number?): 
 end
 
 function LongTermMemory:Backup()
+	if os.clock() - self._lastBackup < 3 then
+		self:_log(2, "Backup rejected due to cooldown")
+		return
+	end
+	self._lastBackup = os.clock()
+	self:_log(1, "Backing up memory to datastore")
+
 	local exclusiveLowerBound = nil
 	while true do
 		local items = self._memorystore:GetRangeAsync(Enum.SortDirection.Ascending, 200, exclusiveLowerBound)

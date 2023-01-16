@@ -230,6 +230,9 @@ end
 function LongTermMemory:Destroy()
 	LongTermMemory._storeCache[self._name] = nil
 	self:Backup()
+	for _key, thread in self._cacheExpirations do
+		task.cancel(thread)
+	end
 	self._memorystore:Destroy()
 	setmetatable(self, nil)
 	table.clear(self)

@@ -28,6 +28,7 @@ function LongTermMemory.new(name: string)
 		_datastore = DataStoreService:GetDataStore(name),
 		_memorystore = MemoryStoreService:GetSortedMap(name),
 
+		_changeListeners = {},
 		_cache = {},
 		_cacheExpirations = {},
 		_lastBackup = 0,
@@ -82,10 +83,34 @@ end
 
 function LongTermMemory:ReceiveMessage(message): ()
 	self:_log(1, "Received message:", message)
-	if message.action == "cacheClear" then
+	if message.action == "keyChanged" then
 		self:ClearCacheLocally(message.key)
+		self:FireOnChanged(message.key, true)
 	else
 		self:_log(2, "Unknown message action:", message.action)
+	end
+end
+
+function LongTermMemory:OnChanged(listener: (key: any, fromExternal: boolean?) -> ()): () -> ()
+	self:_log(1, "OnChanged listener added")
+	table.insert(self._changeListeners, listener)
+
+	return function()
+		self:_log(1, "OnChanged listener removed")
+		for index, storedListener in self._changeListeners do
+			if storedListener ~= listener then continue end
+
+			table.remove(self._changeListeners, index)
+			break
+		end
+	end
+end
+
+function LongTermMemory:FireOnChanged(...): ()
+	self:_log(1, "Firing OnChanged:", ...)
+
+	for _, listener in self._changeListeners do
+		task.spawn(pcall, listener, ...)
 	end
 end
 
@@ -115,6 +140,7 @@ end
 function LongTermMemory:RemoveAsync(key: string): ()
 	self._memorystore:RemoveAsync(key)
 	self._datastore:RemoveAsync(key)
+	self:FireOnChanged(key)
 end
 
 function LongTermMemory:UpdateAsync(key: string, callback: (any?) -> any?, expiration: number?): any?
@@ -149,12 +175,15 @@ function LongTermMemory:UpdateAsync(key: string, callback: (any?) -> any?, expir
 		end
 
 		self:SendMessage({
-			action = "cacheClear",
+			action = "keyChanged",
 			key = key,
 		})
 
 		self:_log(1, "Updated memory for", key, "to", newValue)
 		exitValue = newValue
+
+		self:FireOnChanged(key)
+
 		return {
 			v = newValue,
 			t = timestamp,
@@ -162,6 +191,7 @@ function LongTermMemory:UpdateAsync(key: string, callback: (any?) -> any?, expir
 	end, expiration or self.Expiration)
 
 	self:CacheLocally(key, exitValue, 1800)
+
 	return exitValue
 end
 
@@ -184,12 +214,15 @@ function LongTermMemory:SetAsync(key: string, value: any, expiration: number?): 
 		end
 
 		self:SendMessage({
-			action = "cacheClear",
+			action = "keyChanged",
 			key = key,
 		})
 
 		self:_log(1, "Set memory for", key, "to", value)
 		exitValue = value
+
+		self:FireOnChanged(key)
+
 		return {
 			v = value,
 			t = timestamp,
@@ -197,6 +230,7 @@ function LongTermMemory:SetAsync(key: string, value: any, expiration: number?): 
 	end, expiration or self.Expiration)
 
 	self:CacheLocally(key, exitValue, 1800)
+
 	return exitValue
 end
 
@@ -282,7 +316,5 @@ task.defer(function()
 		end
 	end
 end)
-
-
 
 return LongTermMemory

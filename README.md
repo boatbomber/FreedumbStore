@@ -42,7 +42,7 @@ Wally:
 
 ```toml
 [server-dependencies]
-FreedumbStore = "boatbomber/freedumbstore@0.2.9"
+FreedumbStore = "boatbomber/freedumbstore@0.3.0"
 ```
 
 Rojo:
@@ -120,6 +120,12 @@ function FreedumbStore:UpdateChunkAsync(chunkIndex: number, callback: (any?) -> 
 Update an entire chunk.
 
 ```Lua
+function FreedumbStore:OnChunkChanged(listener: (chunkIndex: number, chunk: any) -> ()): () -> ()
+```
+
+Adds a listener callback for chunk changes. Returns a disconnect function.
+
+```Lua
 function FreedumbStore:GetChunkIndexOfKey(key: string): number?
 ```
 
@@ -136,6 +142,12 @@ function FreedumbStore:FindAvailableChunkIndex(): number
 ```
 
 [INTERNAL]  Returns the first chunk index that is not full.
+
+```Lua
+function FreedumbStore:FireChunkChanged(chunkIndex: number)
+```
+
+[INTERNAL] Fires chunk changed listeners.
 
 ```Lua
 function FreedumbStore:AquireLock(chunkIndex: number): ()
@@ -163,6 +175,7 @@ Read the budget [here](https://create.roblox.com/docs/scripting/data/data-stores
 |-----------:|:------|:------|:------|:------|
 |new|0|0|0|0|
 |ClearCache|0|0|0|0|
+|OnChunkChanged|0|0|0|0|
 |FindAvailableChunkIndex|1/2*A|0|1+A|0|
 |AquireLock|0|0|1+?|1|
 |ReleaseLock|0|0|0|1|

@@ -35,6 +35,7 @@ function FreedumbStore.new(name: string, primaryKey: string)
 		_primaryKey = primaryKey,
 		_cache = {},
 		_locks = {},
+		_changeListeners = {},
 
 		_datastore = DataStoreService:GetDataStore(name),
 		_memorystore = LongTermMemory.new(name .. "/" .. primaryKey .. "/Mem"),
@@ -44,6 +45,21 @@ function FreedumbStore.new(name: string, primaryKey: string)
 	FreedumbStore._storeCache[name][primaryKey] = store
 
 	store._keymap.Expiration = 600_000 -- ~1 week cache time
+
+	store._memorystore:OnChanged(function(key: any, fromExternal: boolean?)
+		if type(key) == "number" or tonumber(key) ~= nil then
+			local chunkIndex = tonumber(key)
+			if fromExternal then
+				-- Clear our outdated cache
+				store._cache[chunkIndex] = nil
+				store:_log(1, "Chunk", chunkIndex, "was changed externally")
+			else
+				store:_log(1, "Chunk", chunkIndex, "was changed locally")
+			end
+
+			store:FireChunkChanged(chunkIndex)
+		end
+	end)
 
 	store:_log(1, "Initialized!")
 
@@ -88,6 +104,30 @@ end
 function FreedumbStore:ClearCache(): ()
 	self:_log(1, "Clearing cache")
 	self._cache = {}
+end
+
+function FreedumbStore:OnChunkChanged(listener: (chunkIndex: number, chunk: any) -> ()): () -> ()
+	self:_log(1, "OnChunkChanged listener added")
+	table.insert(self._changeListeners, listener)
+
+	return function()
+		self:_log(1, "OnChunkChanged listener removed")
+		for index, storedListener in self._changeListeners do
+			if storedListener ~= listener then continue end
+
+			table.remove(self._changeListeners, index)
+			break
+		end
+	end
+end
+
+function FreedumbStore:FireChunkChanged(chunkIndex: number)
+	self:_log(1, "Firing chunk changed", chunkIndex)
+
+	local chunk = self:GetChunkAsync(chunkIndex)
+	for _, listener in self._changeListeners do
+		task.spawn(pcall, listener, chunkIndex, chunk)
+	end
 end
 
 function FreedumbStore:AquireLock(chunkIndex: number): ()

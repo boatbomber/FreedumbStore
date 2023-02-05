@@ -77,8 +77,12 @@ function LongTermMemory:SendMessage(message: {[any]: any}): ()
 	message.store = self._name
 
 	self:_log(1, "Sending message:", message)
-
-	task.spawn(MessagingService.PublishAsync, MessagingService, MSG_ID, message)
+	task.spawn(function()
+		local success, err = pcall(MessagingService.PublishAsync, MessagingService, MSG_ID, message)
+		if not success then
+			self:_log(2, "Failed to send message:", err)
+		end
+	end)
 end
 
 function LongTermMemory:ReceiveMessage(message): ()
@@ -304,7 +308,10 @@ task.defer(function()
 		end
 
 		for _name, store in LongTermMemory._storeCache do
-			store:Backup()
+			local success, err = pcall(store.Backup, store)
+			if not success then
+				warn("Failed to backup", store._DEBUGID, err)
+			end
 		end
 	end)
 
@@ -312,7 +319,10 @@ task.defer(function()
 	while true do
 		task.wait(120)
 		for _name, store in LongTermMemory._storeCache do
-			store:Backup()
+			local success, err = pcall(store.Backup, store)
+			if not success then
+				warn("Failed to backup", store._DEBUGID, err)
+			end
 		end
 	end
 end)

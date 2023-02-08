@@ -88,7 +88,7 @@ end
 
 function LongTermMemory:Observe()
 	self:_log(1, "Observing")
-	self._observerstore:SetAsync(game.JobId, 0)
+	self._observerstore:SetAsync(game.JobId, 0, 3600)
 end
 
 function LongTermMemory:StopObserving()

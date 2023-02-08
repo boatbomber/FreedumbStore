@@ -44,8 +44,6 @@ function FreedumbStore.new(name: string, primaryKey: string)
 	}, FreedumbStore)
 	FreedumbStore._storeCache[name][primaryKey] = store
 
-	store._keymap.Expiration = 600_000 -- ~1 week cache time
-
 	store._memorystore:OnChanged(function(key: any, fromExternal: boolean?)
 		if type(key) == "number" or tonumber(key) ~= nil then
 			local chunkIndex = tonumber(key)

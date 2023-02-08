@@ -33,7 +33,7 @@ function LongTermMemory.new(name: string)
 		_cacheExpirations = {},
 		_lastBackup = 0,
 
-		Expiration = 3_800_000,
+		Expiration = 3600 * 30, -- 30 hours
 	}, LongTermMemory)
 	LongTermMemory._storeCache[name] = store
 

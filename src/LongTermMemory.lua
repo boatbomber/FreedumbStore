@@ -317,7 +317,7 @@ task.defer(function()
 
 	-- Periodically backup
 	while true do
-		task.wait(120)
+		task.wait(math.random(400, 800))
 		for _name, store in LongTermMemory._storeCache do
 			local success, err = pcall(store.Backup, store)
 			if not success then

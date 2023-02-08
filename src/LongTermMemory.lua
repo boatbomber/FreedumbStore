@@ -28,6 +28,8 @@ function LongTermMemory.new(name: string)
 		_name = name,
 		_datastore = DataStoreService:GetDataStore(name),
 		_memorystore = MemoryStoreService:GetSortedMap(name),
+		_observerstore = MemoryStoreService:GetSortedMap("_OBS_" .. name),
+		_hasObservers = false,
 
 		_changeListeners = {},
 		_cache = {},
@@ -37,6 +39,17 @@ function LongTermMemory.new(name: string)
 		Expiration = 3600 * 30, -- 30 hours
 	}, LongTermMemory)
 	LongTermMemory._storeCache[name] = store
+
+	store._hasObservers = store:HasObservers()
+	store:Observe()
+
+	-- Occasionally refresh the observer list
+	task.delay(120, function()
+		while store._hasObservers ~= nil do
+			store._hasObservers = store:HasObservers()
+			task.wait(math.random(120, 300))
+		end
+	end)
 
 	return store
 end
@@ -73,7 +86,35 @@ function LongTermMemory:ClearCacheLocally(key: string): ()
 	end
 end
 
+function LongTermMemory:Observe()
+	self:_log(1, "Observing")
+	self._observerstore:SetAsync(game.JobId, 0)
+end
+
+function LongTermMemory:StopObserving()
+	self:_log(1, "Stopped observing")
+	self._observerstore:RemoveAsync(game.JobId)
+end
+
+function LongTermMemory:HasObservers(): boolean
+	local observers = self._observerstore:GetRangeAsync(
+		Enum.SortDirection.Ascending,
+		2 -- We only need 2 to know if there are any other observers
+	)
+	for _, observer in ipairs(observers) do
+		if observer.key ~= game.JobId then
+			return true
+		end
+	end
+	return false
+end
+
 function LongTermMemory:SendMessage(message: {[any]: any}): ()
+	if not self._hasObservers then
+		self:_log(1, "No observers, not sending message")
+		return
+	end
+
 	message.jobId = game.JobId
 	message.store = self._name
 
@@ -271,11 +312,13 @@ function LongTermMemory:Destroy()
 	self._destroying = true
 
 	LongTermMemory._storeCache[self._name] = nil
+	self:StopObserving()
 	self:Backup()
 	for _key, thread in self._cacheExpirations do
 		task.cancel(thread)
 	end
 	self._memorystore:Destroy()
+	self._observerstore:Destroy()
 	setmetatable(self, nil)
 	table.clear(self)
 end

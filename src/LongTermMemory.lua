@@ -7,8 +7,10 @@
 local DataStoreService = game:GetService("DataStoreService")
 local MemoryStoreService = game:GetService("MemoryStoreService")
 local MessagingService = game:GetService("MessagingService")
+local RunService = game:GetService("RunService")
 
 local MSG_ID = "LongTermMemoryEvents"
+local JOB_ID = if RunService:IsStudio() then "STUDIO_JOB" else game.JobId
 
 local LongTermMemory = {}
 LongTermMemory.__index = LongTermMemory
@@ -88,12 +90,12 @@ end
 
 function LongTermMemory:Observe()
 	self:_log(1, "Observing")
-	self._observerstore:SetAsync(game.JobId, 0, 3600)
+	self._observerstore:SetAsync(JOB_ID, 0, 3600)
 end
 
 function LongTermMemory:StopObserving()
 	self:_log(1, "Stopped observing")
-	self._observerstore:RemoveAsync(game.JobId)
+	self._observerstore:RemoveAsync(JOB_ID)
 end
 
 function LongTermMemory:HasObservers(): boolean
@@ -102,7 +104,7 @@ function LongTermMemory:HasObservers(): boolean
 		2 -- We only need 2 to know if there are any other observers
 	)
 	for _, observer in ipairs(observers) do
-		if observer.key ~= game.JobId then
+		if observer.key ~= JOB_ID then
 			return true
 		end
 	end
@@ -115,7 +117,7 @@ function LongTermMemory:SendMessage(message: {[any]: any}): ()
 		return
 	end
 
-	message.jobId = game.JobId
+	message.jobId = JOB_ID
 	message.store = self._name
 
 	self:_log(1, "Sending message:", message)
@@ -338,7 +340,7 @@ task.defer(function()
 	local subscribeSuccess, subscribeConnection = pcall(function()
 		return MessagingService:SubscribeAsync(MSG_ID, function(message)
 			local data = message.Data
-			if data.jobId == game.JobId then
+			if data.jobId == JOB_ID then
 				-- Ignore messages from self
 				return
 			end

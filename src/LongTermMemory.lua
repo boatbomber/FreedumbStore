@@ -293,7 +293,16 @@ function LongTermMemory:Backup()
 		local items = self._memorystore:GetRangeAsync(Enum.SortDirection.Ascending, 200, exclusiveLowerBound)
 		for _, item in ipairs(items) do
 			self:_log(1, "Backing up", "['" .. tostring(item.key) .. "'] =", item.value)
-			self._datastore:SetAsync(item.key, item.value)
+			local backupSuccess, backupErr = pcall(self._datastore.SetAsync, self._datastore, item.key, item.value)
+			if backupSuccess then
+				-- Now that it's backed up, we can remove it from memory
+				local removalSuccess, removalErr = pcall(self._memorystore.RemoveAsync, self._memorystore, item.key)
+				if not removalSuccess then
+					self:_log(2, "Failed to remove", tostring(item.key), "from memory after backing up:", removalErr)
+				end
+			else
+				self:_log(2, "Failed to backup", tostring(item.key), ":", backupErr)
+			end
 			self:CacheLocally(item.key, item.value.v, 1800)
 		end
 

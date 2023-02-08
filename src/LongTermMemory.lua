@@ -23,6 +23,7 @@ function LongTermMemory.new(name: string)
 	local store = setmetatable({
 		_DEBUG = false,
 		_DEBUGID = "LongTermMemory[" .. name .. "]",
+		_destroying = false,
 
 		_name = name,
 		_datastore = DataStoreService:GetDataStore(name),
@@ -266,6 +267,9 @@ function LongTermMemory:Backup()
 end
 
 function LongTermMemory:Destroy()
+	if self._destroying then return end
+	self._destroying = true
+
 	LongTermMemory._storeCache[self._name] = nil
 	self:Backup()
 	for _key, thread in self._cacheExpirations do

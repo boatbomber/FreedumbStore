@@ -438,6 +438,8 @@ function FreedumbStore:UpdateChunkAsync(chunkIndex: number, callback: (any?) -> 
 				return self:SetChunkAsync(chunkIndex, newChunk)
 			end
 			return chunk
+		end):catch(function(err)
+			self:_log(2, err)
 		end):finally(function()
 			-- Release the lock for this chunk
 			self:ReleaseLock(chunkIndex)

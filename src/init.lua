@@ -319,6 +319,8 @@ function FreedumbStore:GetAllAsync(useCache: boolean?)
 
 		local combined = {}
 		for chunkIndex = 1, topChunk do
+			-- In theory, we can use Promise.all to get all the chunks in parallel,
+			-- but that increases the changes of ROblox dying on us, so we do them one by one with :await()
 			local success, chunk = self:GetChunkAsync(chunkIndex, useCache ~= false):await()
 			if not success then
 				self:_log(2, "Failed to get chunk", chunkIndex, "with error", chunk)
@@ -343,84 +345,82 @@ function FreedumbStore:GetAllAsync(useCache: boolean?)
 	end)
 end
 
+function FreedumbStore:_storeDataAtLocation(location: string, data: any)
+	return Promise.new(function(resolve, reject)
+		local success, err = pcall(self._datastore.SetAsync, self._datastore, location, data)
+		if not success then
+			self:_log(2, "Failed to store data at location", location, "with error", err)
+			reject(err)
+		else
+			resolve()
+		end
+	end)
+end
+
+function FreedumbStore:_updateLocationMemory(key: string | number, location: string)
+	return self._memorystore:SetAsync(key, location):catch(function(err)
+		self:_log(2, "Failed to update location memory for key", key, "with error", err)
+		return Promise.reject(err)
+	end)
+end
+
 function FreedumbStore:SetChunkAsync(chunkIndex: number, chunk: any)
 	if not self._locks[chunkIndex] then
 		self:_log(2, "Cannot set chunk", chunkIndex, "without a lock")
 		return Promise.reject("Cannot set chunk #" .. chunkIndex .. " without a lock")
 	end
 
-	return Promise.new(function(resolve, reject)
-		self:_log(1, "Setting chunk", chunkIndex)
+	self:_log(1, "Setting chunk", chunkIndex)
 
-		local location = HttpService:GenerateGUID(false)
-		local sanitizedChunk = Sanitizer:Sanitize(chunk)
+	local location = HttpService:GenerateGUID(false)
+	local sanitizedChunk = Sanitizer:Sanitize(chunk)
 
-		-- Place data inside store at location
-		self:_log(1, "Putting chunk", chunkIndex, "at location", location)
-		local function setData()
-			self._datastore:SetAsync(location, sanitizedChunk)
-		end
-
-		local dataFailures = 0
-		local dataSuccess, err = pcall(setData)
-		while not dataSuccess do
-			dataFailures += 1
-			self:_log(2, "Failed to set chunk", chunkIndex, "at location", location, "with error", err)
-			task.wait(dataFailures)
-			if dataFailures > 10 then
-				self:_log(2, "Failed to set chunk", chunkIndex, "at location", location, "after 10 retries")
-				reject(err)
-				return
-			end
-			self:_log(1, "Retrying...")
-			dataSuccess, err = pcall(setData)
-		end
-
+	-- Place data inside store at location
+	self:_log(1, "Putting chunk", chunkIndex, "at location", location)
+	return Promise.retryWithDelay(
+		function()
+			return self:_storeDataAtLocation(location, sanitizedChunk)
+		end,
+		3, -- Retry count
+		5 -- Delay between retries (in seconds)
+	):andThen(function()
 		-- Update location memory
 		self:_log(1, "Updating chunk", chunkIndex, "location memory to new location")
-		local locationFailures = 0
-		local locationSuccess, trueLocation = self._memorystore:SetAsync(chunkIndex, location):await()
-		while not locationSuccess do
-			locationFailures += 1
-			self:_log(2, "Failed to update chunk", chunkIndex, "location memory to new location with error", trueLocation)
-			task.wait(locationFailures)
-			self:_log(1, "Retrying...")
-			locationSuccess, trueLocation = self._memorystore:SetAsync(chunkIndex, location):await()
-
-			if locationFailures > 10 then
-				self:_log(2, "Failed to update chunk", chunkIndex, "location memory to new location after 10 retries")
-				reject(trueLocation)
-				return
-			end
-		end
-
-		if trueLocation ~= location then
-			self:_log(2, "Chunk", chunkIndex, "location was moved to", trueLocation, "while we were setting it to", location)
-			local trueDataSuccess, trueDataResult = pcall(self._datastore.GetAsync, self._datastore, trueLocation)
-			if trueDataSuccess then
-				self:_log(1, "Updating cache for chunk", chunkIndex, "from true location", trueLocation)
-				self._cache[chunkIndex] = Sanitizer:Desanitize(trueDataResult)
+		return Promise.retryWithDelay(
+			function()
+				return self:_updateLocationMemory(chunkIndex, location)
+			end,
+			3, -- Retry count
+			5 -- Delay between retries (in seconds)
+		):andThen(function(trueLocation)
+			if trueLocation ~= location then
+				self:_log(2, "Chunk", chunkIndex, "location was moved to", trueLocation, "while we were setting it to", location)
+				local trueDataSuccess, trueDataResult = pcall(self._datastore.GetAsync, self._datastore, trueLocation)
+				if trueDataSuccess then
+					self:_log(1, "Updating cache for chunk", chunkIndex, "from true location", trueLocation)
+					self._cache[chunkIndex] = Sanitizer:Desanitize(trueDataResult)
+				else
+					self:_log(2, "Failed to get latest", chunkIndex, "from true location", trueLocation, "with error", trueDataResult, " (cleared cache instead)")
+					self._cache[chunkIndex] = nil
+				end
 			else
-				self:_log(2, "Failed to get latest", chunkIndex, "from true location", trueLocation, "with error", trueDataResult, " (cleared cache instead)")
-				self._cache[chunkIndex] = nil
-			end
-		else
-			self:_log(1, "Updating cache for chunk", chunkIndex, "from local set")
-			self._cache[chunkIndex] = chunk
-		end
-
-		-- Update top chunk if needed
-		self._memorystore:UpdateAsync("TopChunk", function(topChunk)
-			if (topChunk == nil) or (topChunk < chunkIndex) then
-				self:_log(1, "Updating top chunk to", chunkIndex)
-				return chunkIndex
+				self:_log(1, "Updating cache for chunk", chunkIndex, "from local set")
+				self._cache[chunkIndex] = chunk
 			end
 
-			return nil
+			-- Update top chunk if needed
+			return self._memorystore:UpdateAsync("TopChunk", function(topChunk)
+				if (topChunk == nil) or (topChunk < chunkIndex) then
+					self:_log(1, "Updating top chunk to", chunkIndex)
+					return chunkIndex
+				end
+
+				return nil
+			end):andThen(function(_topChunk)
+				-- Return the updated chunk
+				return self._cache[chunkIndex]
+			end)
 		end)
-
-		resolve(self._cache[chunkIndex])
-		return
 	end)
 end
 
@@ -428,7 +428,7 @@ function FreedumbStore:UpdateChunkAsync(chunkIndex: number, callback: (any?) -> 
 	self:_log(1, "Updating chunk", chunkIndex)
 
 	-- Aquire the lock for this chunk
-	return self:AquireLock(chunkIndex):andThen(function()
+	return self:AquireLock(chunkIndex):timeout(10):andThen(function()
 		-- Get the chunk
 		return self:GetChunkAsync(chunkIndex, false):andThen(function(chunk)
 			-- Update the chunk
@@ -440,6 +440,7 @@ function FreedumbStore:UpdateChunkAsync(chunkIndex: number, callback: (any?) -> 
 			return chunk
 		end):catch(function(err)
 			self:_log(2, err)
+			return Promise.reject(err)
 		end):finally(function()
 			-- Release the lock for this chunk
 			self:ReleaseLock(chunkIndex)
@@ -448,84 +449,54 @@ function FreedumbStore:UpdateChunkAsync(chunkIndex: number, callback: (any?) -> 
 end
 
 function FreedumbStore:SetAsync(key: string, value: any)
-	return Promise.new(function(resolve, reject)
-		self:_log(1, "Setting key", key, "to value", value)
+	self:_log(1, "Setting key", key, "to value", value)
 
-		-- Get the chunk index this key is in
-		local chunkIndex = nil
-
-		local keySuccess, keyIndex = self:GetChunkIndexOfKey(key):await()
-		if not keySuccess then
-			reject(keyIndex)
-			return
-		else
-			chunkIndex = keyIndex
-		end
-
+	return self:GetChunkIndexOfKey(key):andThen(function(chunkIndex)
 		if chunkIndex == nil then
-			local availableSuccess, availableIndex = self:FindAvailableChunkIndex():await()
-			if not availableSuccess then
-				reject(availableIndex)
-				return
-			else
-				chunkIndex = availableIndex
-			end
+			-- Get an available chunk index for this new key
+			return self:GetChunkIndexOfKey(key)
 		end
-
+		return chunkIndex
+	end):andThen(function(chunkIndex)
 		self:_log(1, "Putting key", key, "into chunk", chunkIndex)
 		if chunkIndex == nil then
-			reject("Could not find a chunk to put key " .. key .. " into")
-			return
+			return Promise.reject("Could not find a chunk to put key " .. key .. " into")
 		end
 
 		-- Update the chunk and put the key in
-		self:UpdateChunkAsync(chunkIndex, function(chunk)
+		return self:UpdateChunkAsync(chunkIndex, function(chunk)
 			chunk = chunk or {}
 			chunk[key] = value
 			return chunk
 		end):andThen(function(newChunk)
 			-- Save where this key is
-			self:SetChunkIndexOfKey(key, chunkIndex)
-
-			resolve(newChunk[key])
-			return
+			return self:SetChunkIndexOfKey(key, chunkIndex):andThen(function(_storedIndex)
+				return newChunk[key]
+			end)
+		end):catch(function(err)
+			self:_log(2, err)
+			return Promise.reject(err)
 		end)
 	end)
 end
 
 function FreedumbStore:UpdateAsync(key: string, callback: (any?) -> any?)
-	return Promise.new(function(resolve, reject)
-		self:_log(1, "Updating key", key)
+	self:_log(1, "Updating key", key)
 
-		-- Get the chunk index this key is in
-		local chunkIndex = nil
-
-		local keySuccess, keyIndex = self:GetChunkIndexOfKey(key):await()
-		if not keySuccess then
-			reject(keyIndex)
-			return
-		else
-			chunkIndex = keyIndex
-		end
-
+	return self:GetChunkIndexOfKey(key):andThen(function(chunkIndex)
 		if chunkIndex == nil then
-			local availableSuccess, availableIndex = self:FindAvailableChunkIndex():await()
-			if not availableSuccess then
-				reject(availableIndex)
-				return
-			else
-				chunkIndex = availableIndex
-			end
+			-- Get an available chunk index for this new key
+			return self:GetChunkIndexOfKey(key)
 		end
-
+		return chunkIndex
+	end):andThen(function(chunkIndex)
 		self:_log(1, "Putting key", key, "into chunk", chunkIndex)
 		if chunkIndex == nil then
-			reject("Could not find a chunk to put key " .. key .. " into")
-			return
+			return Promise.reject("Could not find a chunk to put key " .. key .. " into")
 		end
 
 		-- Update the chunk and put the key in
-		self:UpdateChunkAsync(chunkIndex, function(chunk)
+		return self:UpdateChunkAsync(chunkIndex, function(chunk)
 			chunk = chunk or {}
 			local value = chunk[key]
 			local newValue = callback(value)
@@ -546,10 +517,12 @@ function FreedumbStore:UpdateAsync(key: string, callback: (any?) -> any?)
 			return chunk
 		end):andThen(function(newChunk)
 			-- Save where this key is
-			self:SetChunkIndexOfKey(key, chunkIndex)
-
-			resolve(newChunk[key])
-			return
+			return self:SetChunkIndexOfKey(key, chunkIndex):andThen(function(_storedIndex)
+				return newChunk[key]
+			end)
+		end):catch(function(err)
+			self:_log(2, err)
+			return Promise.reject(err)
 		end)
 	end)
 end
@@ -576,11 +549,11 @@ function FreedumbStore:RemoveAsync(key: string): boolean
 
 			chunk[key] = nil
 			return chunk
-		end):andThen(function(newChunk)
+		end):andThen(function(_newChunk)
 			-- Remove where this key is
-			self:SetChunkIndexOfKey(key, nil)
-
-			return true
+			return self:SetChunkIndexOfKey(key, nil):andThen(function(_storedIndex)
+				return true
+			end)
 		end)
 	end)
 end

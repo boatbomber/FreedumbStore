@@ -9,6 +9,8 @@ local MemoryStoreService = game:GetService("MemoryStoreService")
 local MessagingService = game:GetService("MessagingService")
 local RunService = game:GetService("RunService")
 
+local Promise = require(script.Parent.Parent.Promise)
+
 local MSG_ID = "LongTermMemoryEvents"
 local JOB_ID = if RunService:IsStudio() then "STUDIO_JOB" else game.JobId
 
@@ -63,80 +65,119 @@ function LongTermMemory:_log(logLevel, ...): ()
 	end
 end
 
-function LongTermMemory:CacheLocally(key: string, value: any?, expiration: number): ()
-	self:_log(1, "Setting local cache for", key, "for", expiration, "seconds")
-	self._cache[key] = value
-	if self._cacheExpirations[key] then
-		task.cancel(self._cacheExpirations[key])
-		self._cacheExpirations[key] = nil
-	end
-	self._cacheExpirations[key] = task.delay(expiration, function()
-		if self._cache[key] == value then
-			self._cache[key] = nil
-			self:_log(1, "Expired local cache for", key, "after", expiration, "seconds")
+function LongTermMemory:CacheLocally(key: string, value: any?, expiration: number)
+	return Promise.new(function(resolve, reject)
+		self:_log(1, "Setting local cache for", key, "for", expiration, "seconds")
+		self._cache[key] = value
+		if self._cacheExpirations[key] then
+			task.cancel(self._cacheExpirations[key])
+			self._cacheExpirations[key] = nil
 		end
-		self._cacheExpirations[key] = nil
+		self._cacheExpirations[key] = task.delay(expiration, function()
+			if self._cache[key] == value then
+				self._cache[key] = nil
+				self:_log(1, "Expired local cache for", key, "after", expiration, "seconds")
+			end
+			self._cacheExpirations[key] = nil
+		end)
+		resolve()
 	end)
 end
 
-function LongTermMemory:ClearCacheLocally(key: string): ()
-	self:_log(1, "Clearing local cache for", key)
-	self._cache[key] = nil
-	if self._cacheExpirations[key] then
-		task.cancel(self._cacheExpirations[key])
-		self._cacheExpirations[key] = nil
-	end
+function LongTermMemory:ClearCacheLocally(key: string)
+	return Promise.new(function(resolve, reject)
+		self:_log(1, "Clearing local cache for", key)
+		self._cache[key] = nil
+		if self._cacheExpirations[key] then
+			task.cancel(self._cacheExpirations[key])
+			self._cacheExpirations[key] = nil
+		end
+		resolve()
+	end)
 end
 
 function LongTermMemory:Observe()
-	self:_log(1, "Observing")
-	self._observerstore:SetAsync(JOB_ID, 0, 3600)
-end
-
-function LongTermMemory:StopObserving()
-	self:_log(1, "Stopped observing")
-	self._observerstore:RemoveAsync(JOB_ID)
-end
-
-function LongTermMemory:HasObservers(): boolean
-	local observers = self._observerstore:GetRangeAsync(
-		Enum.SortDirection.Ascending,
-		2 -- We only need 2 to know if there are any other observers
-	)
-	for _, observer in ipairs(observers) do
-		if observer.key ~= JOB_ID then
-			return true
-		end
-	end
-	return false
-end
-
-function LongTermMemory:SendMessage(message: {[any]: any}): ()
-	if not self._hasObservers then
-		self:_log(1, "No observers, not sending message")
-		return
-	end
-
-	message.jobId = JOB_ID
-	message.store = self._name
-
-	self:_log(1, "Sending message:", message)
-	task.spawn(function()
-		local success, err = pcall(MessagingService.PublishAsync, MessagingService, MSG_ID, message)
+	return Promise.new(function(resolve, reject)
+		self:_log(1, "Observing")
+		local success, result = pcall(self._observerstore.SetAsync, self._observerstore, JOB_ID, 0, 3600)
 		if not success then
-			self:_log(2, "Failed to send message:", err)
+			self:_log(2, "Failed to observe:", result)
+			reject(result)
+			return
 		end
+		resolve(result)
 	end)
 end
 
-function LongTermMemory:ReceiveMessage(message): ()
-	self:_log(1, "Received message:", message)
-	if message.action == "keyChanged" then
-		self:ClearCacheLocally(message.key)
-		self:FireOnChanged(message.key, true)
-	else
-		self:_log(2, "Unknown message action:", message.action)
+function LongTermMemory:StopObserving()
+	return Promise.new(function(resolve, reject)
+		self:_log(1, "Stopped observing")
+		local success, result = pcall(self._observerstore.RemoveAsync, self._observerstore, JOB_ID)
+		if not success then
+			self:_log(2, "Failed to stop observing:", result)
+			reject(result)
+			return
+		end
+		resolve(result)
+	end)
+end
+
+function LongTermMemory:HasObservers()
+	return Promise.new(function(resolve, reject)
+		local success, observers = pcall(self._observerstore.GetRangeAsync, self._observerstore,
+			Enum.SortDirection.Ascending,
+			2 -- We only need 2 to know if there are any other observers
+		)
+		if not success then
+			self:_log(2, "Failed to get observers:", observers)
+			reject(observers)
+			return
+		end
+
+		for _, observer in ipairs(observers) do
+			if observer.key ~= JOB_ID then
+				resolve(true)
+			end
+		end
+		return resolve(false)
+	end)
+end
+
+function LongTermMemory:SendMessage(message: {[any]: any})
+	if not self._hasObservers then
+		self:_log(1, "No observers, not sending message")
+		return Promise.reject("No observers, not sending message")
 	end
+
+	return Promise.new(function(resolve, reject)
+		message.jobId = JOB_ID
+		message.store = self._name
+
+		self:_log(1, "Sending message:", message)
+
+		local success, err = pcall(MessagingService.PublishAsync, MessagingService, MSG_ID, message)
+		if not success then
+			self:_log(2, "Failed to send message:", err)
+			reject(err)
+			return
+		end
+		resolve()
+	end)
+end
+
+function LongTermMemory:ReceiveMessage(message)
+	return Promise.new(function(resolve, reject)
+		self:_log(1, "Received message:", message)
+		if message.action == "keyChanged" then
+			self:ClearCacheLocally(message.key)
+			self:FireOnChanged(message.key, true)
+		else
+			self:_log(2, "Unknown message action:", message.action)
+			reject("Unknown message action: " .. message.action)
+			return
+		end
+		resolve()
+	end)
 end
 
 function LongTermMemory:OnChanged(listener: (key: any, fromExternal: boolean?) -> ()): () -> ()
@@ -154,168 +195,234 @@ function LongTermMemory:OnChanged(listener: (key: any, fromExternal: boolean?) -
 	end
 end
 
-function LongTermMemory:FireOnChanged(...): ()
+function LongTermMemory:FireOnChanged(...)
 	self:_log(1, "Firing OnChanged:", ...)
 
 	for _, listener in self._changeListeners do
 		task.spawn(pcall, listener, ...)
 	end
+
+	return Promise.resolve()
 end
 
-function LongTermMemory:GetAsync(key: string): any?
+function LongTermMemory:GetAsync(key: string)
 	if self._cache[key] ~= nil then
 		self:_log(1, "Got", key, "from cache")
-		return self._cache[key]
+		return Promise.resolve(self._cache[key])
 	end
 
-	local fromMemory = self._memorystore:GetAsync(key)
-	if fromMemory ~= nil then
-		self:_log(1, "Got", key, "from memory")
-		self:CacheLocally(key, fromMemory.v, 1800)
-		return fromMemory.v
-	end
+	return Promise.new(function(resolve, reject)
+		local memSuccess, fromMemory = pcall(self._memorystore.GetAsync, self._memorystore, key)
+		if not memSuccess then
+			self:_log(2, "Failed to get", key, "from memory:", fromMemory)
+			reject(fromMemory)
+			return
+		end
 
-	local fromData = self._datastore:GetAsync(key)
-	if fromData ~= nil then
-		self:_log(1, "Got", key, "from datastore")
-		self:CacheLocally(key, fromData.v, 1800)
-		return fromData.v
-	end
+		if fromMemory ~= nil then
+			self:_log(1, "Got", key, "from memory")
+			self:CacheLocally(key, fromMemory.v, 1800)
+			resolve(fromMemory.v)
+			return
+		end
 
-	return nil
+		local dataSuccess, fromData = pcall(self._datastore.GetAsync, self._datastore, key)
+		if not dataSuccess then
+			self:_log(2, "Failed to get", key, "from datastore:", fromData)
+			reject(fromData)
+			return
+		end
+
+		if fromData ~= nil then
+			self:_log(1, "Got", key, "from datastore")
+			self:CacheLocally(key, fromData.v, 1800)
+			resolve(fromData.v)
+			return
+		end
+
+		-- There simply isn't a value
+		resolve(nil)
+		return
+	end)
 end
 
-function LongTermMemory:RemoveAsync(key: string): ()
-	self._memorystore:RemoveAsync(key)
-	self._datastore:RemoveAsync(key)
-	self:FireOnChanged(key)
+function LongTermMemory:RemoveAsync(key: string)
+	return Promise.new(function(resolve, reject)
+		local memSuccess, memErr = pcall(self._memorystore.RemoveAsync, self._memorystore, key)
+		if not memSuccess then
+			self:_log(2, "Failed to remove", key, "from memory:", memErr)
+			reject(memErr)
+			return
+		end
+
+		local dataSuccess, dataErr = pcall(self._datastore.RemoveAsync, self._datastore, key)
+		if not dataSuccess then
+			self:_log(2, "Failed to remove", key, "from datastore:", dataErr)
+			reject(dataErr)
+			return
+		end
+
+		self:FireOnChanged(key)
+		resolve()
+	end)
 end
 
-function LongTermMemory:UpdateAsync(key: string, callback: (any?) -> any?, expiration: number?): any?
+function LongTermMemory:UpdateAsync(key: string, callback: (any?) -> any?, expiration: number?)
 	local timestamp = DateTime.now().UnixTimestampMillis
 	local exitValue = nil
 
-	self._memorystore:UpdateAsync(key, function(old)
-		if old == nil then
-			old = self._datastore:GetAsync(key)
-			self:_log(1, "Got", key, "from datastore during update since it was not in memory")
+	return Promise.new(function(resolve, reject)
+		local success, err = pcall(self._memorystore.UpdateAsync, self._memorystore,
+			key, function(old)
+				if old == nil then
+					old = self._datastore:GetAsync(key)
+					self:_log(1, "Got", key, "from datastore during update since it was not in memory")
+				end
+
+				local oldValue = if old then old.v else nil
+
+				if old and old.t > timestamp then
+					-- Stored is more recent, cancel this
+					exitValue = oldValue
+					return nil
+				end
+
+				local newValue = callback(oldValue)
+				if newValue == nil then
+					-- Callback cancelled
+					exitValue = oldValue
+					return nil
+				end
+
+				if newValue == oldValue then
+					-- Value is the same, cancel this
+					exitValue = newValue
+					return nil
+				end
+
+				self:SendMessage({
+					action = "keyChanged",
+					key = key,
+				})
+
+				self:_log(1, "Updated memory for", key, "to", newValue)
+				exitValue = newValue
+
+				self:FireOnChanged(key)
+
+				return {
+					v = newValue,
+					t = timestamp,
+				}
+			end,
+			expiration or self.Expiration
+		)
+
+		if not success then
+			self:_log(2, "Failed to update", key, "in memory:", err)
+			reject(err)
+			return
 		end
 
-		local oldValue = if old then old.v else nil
-
-		if old and old.t > timestamp then
-			-- Stored is more recent, cancel this
-			exitValue = oldValue
-			return nil
-		end
-
-		local newValue = callback(oldValue)
-		if newValue == nil then
-			-- Callback cancelled
-			exitValue = oldValue
-			return nil
-		end
-
-		if newValue == oldValue then
-			-- Value is the same, cancel this
-			exitValue = newValue
-			return nil
-		end
-
-		self:SendMessage({
-			action = "keyChanged",
-			key = key,
-		})
-
-		self:_log(1, "Updated memory for", key, "to", newValue)
-		exitValue = newValue
-
-		self:FireOnChanged(key)
-
-		return {
-			v = newValue,
-			t = timestamp,
-		}
-	end, expiration or self.Expiration)
-
-	self:CacheLocally(key, exitValue, 1800)
-
-	return exitValue
+		self:CacheLocally(key, exitValue, 1800)
+		resolve(exitValue)
+		return
+	end)
 end
 
 function LongTermMemory:SetAsync(key: string, value: any, expiration: number?): any
 	local timestamp = DateTime.now().UnixTimestampMillis
 	local exitValue = nil
 
-	self._memorystore:UpdateAsync(key, function(old)
-		if old == nil then
-			old = self._datastore:GetAsync(key)
-			self:_log(1, "Got", key, "from datastore during set since it was not in memory")
+	return Promise.new(function(resolve, reject)
+		local success, err = pcall(self._memorystore.UpdateAsync, self._memorystore,
+			key, function(old)
+				if old == nil then
+					old = self._datastore:GetAsync(key)
+					self:_log(1, "Got", key, "from datastore during set since it was not in memory")
+				end
+
+				if old ~= nil then
+					if (old.t > timestamp) or (old.v == value) then
+						-- Stored is more recent or unchanged, cancel this
+						exitValue = old.Value
+						return nil
+					end
+				end
+
+				self:SendMessage({
+					action = "keyChanged",
+					key = key,
+				})
+
+				self:_log(1, "Set memory for", key, "to", value)
+				exitValue = value
+
+				self:FireOnChanged(key)
+
+				return {
+					v = value,
+					t = timestamp,
+				}
+			end,
+			expiration or self.Expiration
+		)
+
+		if not success then
+			self:_log(2, "Failed to set", key, "in memory:", err)
+			reject(err)
+			return
 		end
 
-		if old ~= nil then
-			if (old.t > timestamp) or (old.v == value) then
-				-- Stored is more recent or unchanged, cancel this
-				exitValue = old.Value
-				return nil
-			end
-		end
-
-		self:SendMessage({
-			action = "keyChanged",
-			key = key,
-		})
-
-		self:_log(1, "Set memory for", key, "to", value)
-		exitValue = value
-
-		self:FireOnChanged(key)
-
-		return {
-			v = value,
-			t = timestamp,
-		}
-	end, expiration or self.Expiration)
-
-	self:CacheLocally(key, exitValue, 1800)
-
-	return exitValue
+		self:CacheLocally(key, exitValue, 1800)
+		resolve(exitValue)
+		return
+	end)
 end
 
 function LongTermMemory:Backup()
 	if os.clock() - self._lastBackup < 3 then
 		self:_log(2, "Backup rejected due to cooldown")
-		return
+		return Promise.reject("Backup rejected due to cooldown")
 	end
 	self._lastBackup = os.clock()
 	self:_log(1, "Backing up memory to datastore")
 
-	local exclusiveLowerBound = nil
-	while true do
-		local items = self._memorystore:GetRangeAsync(Enum.SortDirection.Ascending, 200, exclusiveLowerBound)
-		for _, item in ipairs(items) do
-			self:_log(1, "Backing up", "['" .. tostring(item.key) .. "'] =", item.value)
-			local backupSuccess, backupErr = pcall(self._datastore.SetAsync, self._datastore, item.key, item.value)
-			if backupSuccess then
-				-- Now that it's backed up, we can remove it from memory
-				local removalSuccess, removalErr = pcall(self._memorystore.RemoveAsync, self._memorystore, item.key)
-				if not removalSuccess then
-					self:_log(2, "Failed to remove", tostring(item.key), "from memory after backing up:", removalErr)
-				end
-			else
-				self:_log(2, "Failed to backup", tostring(item.key), ":", backupErr)
+	return Promise.new(function(resolve, reject)
+		local exclusiveLowerBound = nil
+		while true do
+			local success, items = pcall(self._memorystor.GetRangeAsync, self._memorystore, Enum.SortDirection.Ascending, 200, exclusiveLowerBound)
+			if not success then
+				self:_log(2, "Failed to get range from memory:", items)
+				reject(items)
+				return
 			end
-			self:CacheLocally(item.key, item.value.v, 1800)
-		end
 
-		-- If the call returned less than requested amount, we’ve reached the end of the map
-		if #items < 200 then
-			break
-		end
+			for _, item in ipairs(items) do
+				self:_log(1, "Backing up", "['" .. tostring(item.key) .. "'] =", item.value)
+				local backupSuccess, backupErr = pcall(self._datastore.SetAsync, self._datastore, item.key, item.value)
+				if backupSuccess then
+					-- Now that it's backed up, we can remove it from memory
+					local removalSuccess, removalErr = pcall(self._memorystore.RemoveAsync, self._memorystore, item.key)
+					if not removalSuccess then
+						self:_log(2, "Failed to remove", tostring(item.key), "from memory after backing up:", removalErr)
+					end
+				else
+					self:_log(2, "Failed to backup", tostring(item.key), ":", backupErr)
+				end
+				self:CacheLocally(item.key, item.value.v, 1800)
+			end
 
-		-- Last retrieved key is the exclusive lower bound for the next iteration
-		exclusiveLowerBound = items[#items].key
-	end
+			-- If the call returned less than requested amount, we’ve reached the end of the map
+			if #items < 200 then
+				break
+			end
+
+			-- Last retrieved key is the exclusive lower bound for the next iteration
+			exclusiveLowerBound = items[#items].key
+		end
+		resolve()
+	end)
 end
 
 function LongTermMemory:Destroy()
@@ -323,8 +430,8 @@ function LongTermMemory:Destroy()
 	self._destroying = true
 
 	LongTermMemory._storeCache[self._name] = nil
-	self:StopObserving()
-	self:Backup()
+	self:StopObserving():catch(warn)
+	self:Backup():await()
 	for _key, thread in self._cacheExpirations do
 		task.cancel(thread)
 	end
@@ -366,10 +473,10 @@ task.defer(function()
 		end
 
 		for _name, store in LongTermMemory._storeCache do
-			local success, err = pcall(store.Backup, store)
-			if not success then
+			store:Backup():catch(function(err)
 				warn("Failed to backup", store._DEBUGID, err)
-			end
+			end)
+			task.wait(0.25) -- Reduce throttle
 		end
 	end)
 
@@ -377,10 +484,10 @@ task.defer(function()
 	while true do
 		task.wait(math.random(400, 800))
 		for _name, store in LongTermMemory._storeCache do
-			local success, err = pcall(store.Backup, store)
-			if not success then
+			store:Backup():catch(function(err)
 				warn("Failed to backup", store._DEBUGID, err)
-			end
+			end)
+			task.wait(1) -- Reduce throttle
 		end
 	end
 end)

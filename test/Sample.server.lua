@@ -20,9 +20,12 @@ for ID=1, 50 do
 	Store:SetAsync("TradeID-" .. ID, {
 		TradeData = data,
 		Position = Vector3.new(math.random(100), math.random(100), math.random(100)),
-	})
+	}):catch(warn):await()
 end
 
-local trade25 = Store:GetAsync("TradeID-25")
-print("Trade 25:", trade25)
-print("All Trades:", Store:GetAllAsync())
+Store:GetAsync("TradeID-25"):andThen(function(trade25)
+	print("Trade 25:", trade25)
+end):catch(warn)
+Store:GetAllAsync():andThen(function(trades)
+	print("All Trades:", trades)
+end):catch(warn)

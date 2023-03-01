@@ -485,7 +485,7 @@ function FreedumbStore:SetAsync(key: string, value: any)
 			-- Save where this key is
 			self:SetChunkIndexOfKey(key, chunkIndex)
 
-			resolve(newChunk)
+			resolve(newChunk[key])
 			return
 		end)
 	end)
@@ -546,7 +546,7 @@ function FreedumbStore:UpdateAsync(key: string, callback: (any?) -> any?)
 			-- Save where this key is
 			self:SetChunkIndexOfKey(key, chunkIndex)
 
-			resolve(newChunk)
+			resolve(newChunk[key])
 			return
 		end)
 	end)

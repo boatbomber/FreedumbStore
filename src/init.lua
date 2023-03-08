@@ -454,7 +454,7 @@ function FreedumbStore:SetAsync(key: string, value: any)
 	return self:GetChunkIndexOfKey(key):andThen(function(chunkIndex)
 		if chunkIndex == nil then
 			-- Get an available chunk index for this new key
-			return self:GetChunkIndexOfKey(key)
+			return self:FindAvailableChunkIndex()
 		end
 		return chunkIndex
 	end):andThen(function(chunkIndex)
@@ -486,7 +486,7 @@ function FreedumbStore:UpdateAsync(key: string, callback: (any?) -> any?)
 	return self:GetChunkIndexOfKey(key):andThen(function(chunkIndex)
 		if chunkIndex == nil then
 			-- Get an available chunk index for this new key
-			return self:GetChunkIndexOfKey(key)
+			return self:FindAvailableChunkIndex()
 		end
 		return chunkIndex
 	end):andThen(function(chunkIndex)

@@ -1,7 +1,7 @@
 [package]
 name = "boatbomber/freedumbstore"
 description = "A Roblox Datastore wrapper that avoids the limitations by being absolutely ridiculous. Use at your own risk."
-version = "0.5.3"
+version = "0.5.4"
 license = "MIT"
 authors = ["boatbomber (https://boatbomber.com)"]
 registry = "https://github.com/upliftgames/wally-index"

@@ -391,7 +391,7 @@ function LongTermMemory:Backup()
 	return Promise.new(function(resolve, reject)
 		local exclusiveLowerBound = nil
 		while true do
-			local success, items = pcall(self._memorystor.GetRangeAsync, self._memorystore, Enum.SortDirection.Ascending, 200, exclusiveLowerBound)
+			local success, items = pcall(self._memorystore.GetRangeAsync, self._memorystore, Enum.SortDirection.Ascending, 200, exclusiveLowerBound)
 			if not success then
 				self:_log(2, "Failed to get range from memory:", items)
 				reject(items)

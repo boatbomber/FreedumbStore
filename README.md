@@ -45,7 +45,7 @@ Wally:
 
 ```toml
 [server-dependencies]
-FreedumbStore = "boatbomber/freedumbstore@0.5.5"
+FreedumbStore = "boatbomber/freedumbstore@0.6.0"
 ```
 
 Rojo:
@@ -177,7 +177,6 @@ Read the budget [here](https://create.roblox.com/docs/scripting/data/data-stores
 | Function   | Datastore Gets  | Datastore Sets | Memorystore Gets | Memorystore Sets  |
 |-----------:|:------|:------|:------|:------|
 |new|0|0|0|0|
-|ClearCache|0|0|0|0|
 |OnChunkChanged|0|0|0|0|
 |FindAvailableChunkIndex|1/2*A|0|1+A|0|
 |AquireLock|0|0|1+?|1|

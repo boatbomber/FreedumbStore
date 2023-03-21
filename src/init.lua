@@ -544,7 +544,7 @@ function FreedumbStore:UpdateAsync(key: string, callback: (any?) -> any?)
 				return nil
 			end
 
-			if newValue == value then
+			if type(newValue) ~= "table" and newValue == value then
 				-- No change, still on value
 				self:_log(1, "Update had no change, still on value")
 				return nil

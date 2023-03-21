@@ -345,7 +345,7 @@ function LongTermMemory:SetAsync(key: string, value: any, expiration: number?): 
 				if old ~= nil then
 					if (old.t > timestamp) or (old.v == value) then
 						-- Stored is more recent or unchanged, cancel this
-						exitValue = old.Value
+						exitValue = old.v
 						return nil
 					end
 				end

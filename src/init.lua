@@ -12,6 +12,7 @@ local DataStoreService = game:GetService("DataStoreService")
 local MemoryStoreService = game:GetService("MemoryStoreService")
 local LongTermMemory = require(script:WaitForChild("LongTermMemory"))
 local Sanitizer = require(script:WaitForChild("Sanitizer"))
+local Util = require(script:WaitForChild("Util"))
 
 local Promise = require(script.Parent.Promise)
 
@@ -35,9 +36,10 @@ function FreedumbStore.new(name: string, primaryKey: string)
 		_DEBUGID = "FreedumbStore[" .. name .. "/" .. primaryKey .. "]",
 		_name = name,
 		_primaryKey = primaryKey,
-		_cache = {},
 		_locks = {},
 		_changeListeners = {},
+		_cache = {},
+		_cacheExpirations = {},
 
 		_datastore = DataStoreService:GetDataStore(name),
 		_memorystore = LongTermMemory.new(name .. "/" .. primaryKey .. "/Mem"),
@@ -51,7 +53,7 @@ function FreedumbStore.new(name: string, primaryKey: string)
 			local chunkIndex = tonumber(key)
 			if fromExternal then
 				-- Clear our outdated cache
-				store._cache[chunkIndex] = nil
+				store:ClearCache(chunkIndex)
 				store:_log(1, "Chunk", chunkIndex, "was changed externally")
 			else
 				store:_log(1, "Chunk", chunkIndex, "was changed locally")
@@ -101,10 +103,45 @@ function FreedumbStore:_setDebug(enabled: boolean): ()
 	self._keymap._DEBUG = enabled
 end
 
-function FreedumbStore:ClearCache()
-	self:_log(1, "Clearing cache")
-	self._cache = {}
-	return Promise.resolve()
+function FreedumbStore:SetCacheAsync(key: string, value: any?, expiration: number)
+	return Promise.new(function(resolve, reject)
+		self:_log(1, "Setting local cache for", key, "for", expiration, "seconds")
+		if self._cacheExpirations[key] then
+			task.cancel(self._cacheExpirations[key])
+			self._cacheExpirations[key] = nil
+		end
+
+		if type(value) == "table" then
+			-- Ensure no one accidentally modifies the cache
+			value = table.freeze(Util.deepCopy(value))
+		end
+		self._cache[key] = value
+
+		self._cacheExpirations[key] = task.delay(expiration, function()
+			if self._cache[key] == value then
+				self._cache[key] = nil
+				self:_log(1, "Expired local cache for", key, "after", expiration, "seconds")
+			end
+			self._cacheExpirations[key] = nil
+		end)
+		resolve()
+	end)
+end
+
+function FreedumbStore:RemoveCacheAsync(key: string)
+	return Promise.new(function(resolve, reject)
+		self:_log(1, "Clearing local cache for", key)
+		self._cache[key] = nil
+		if self._cacheExpirations[key] then
+			task.cancel(self._cacheExpirations[key])
+			self._cacheExpirations[key] = nil
+		end
+		resolve()
+	end)
+end
+
+function FreedumbStore:GetCached(key: string)
+	return self._cache[key]
 end
 
 function FreedumbStore:OnChunkChanged(listener: (chunkIndex: number, chunk: any) -> ()): () -> ()
@@ -258,7 +295,7 @@ function FreedumbStore:GetChunkAsync(chunkIndex: number, useCache: boolean?)
 		if next(self._cache[chunkIndex]) == nil then
 			self:_log(1, "  But cached chunk #" .. chunkIndex .. " is empty, so let's check again anyway")
 		else
-			return Promise.resolve(self._cache[chunkIndex])
+			return Promise.resolve(self:GetCached(chunkIndex))
 		end
 	end
 
@@ -278,7 +315,7 @@ function FreedumbStore:GetChunkAsync(chunkIndex: number, useCache: boolean?)
 		end
 
 		local chunk = Sanitizer:Desanitize(dataResult)
-		self._cache[chunkIndex] = chunk
+		self:SetCacheAsync(chunkIndex, chunk, 3600)
 		return chunk
 	end)
 end
@@ -398,14 +435,14 @@ function FreedumbStore:SetChunkAsync(chunkIndex: number, chunk: any)
 				local trueDataSuccess, trueDataResult = pcall(self._datastore.GetAsync, self._datastore, trueLocation)
 				if trueDataSuccess then
 					self:_log(1, "Updating cache for chunk", chunkIndex, "from true location", trueLocation)
-					self._cache[chunkIndex] = Sanitizer:Desanitize(trueDataResult)
+					self:SetCacheAsync(chunkIndex, Sanitizer:Desanitize(trueDataResult), 3600)
 				else
 					self:_log(2, "Failed to get latest", chunkIndex, "from true location", trueLocation, "with error", trueDataResult, " (cleared cache instead)")
-					self._cache[chunkIndex] = nil
+					self:RemoveCacheAsync(chunkIndex)
 				end
 			else
 				self:_log(1, "Updating cache for chunk", chunkIndex, "from local set")
-				self._cache[chunkIndex] = chunk
+				self:SetCacheAsync(chunkIndex, chunk, 3600)
 			end
 
 			-- Update top chunk if needed
@@ -418,7 +455,7 @@ function FreedumbStore:SetChunkAsync(chunkIndex: number, chunk: any)
 				return nil
 			end):andThen(function(_topChunk)
 				-- Return the updated chunk
-				return self._cache[chunkIndex]
+				return self:GetCached(chunkIndex)
 			end)
 		end)
 	end)

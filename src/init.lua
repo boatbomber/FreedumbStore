@@ -316,7 +316,7 @@ function FreedumbStore:GetChunkAsync(chunkIndex: number, useCache: boolean?)
 
 		local chunk = Sanitizer:Desanitize(dataResult)
 		self:SetCacheAsync(chunkIndex, chunk, 3600)
-		return chunk
+		return Util.deepCopy(chunk)
 	end)
 end
 

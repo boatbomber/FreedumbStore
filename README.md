@@ -45,7 +45,7 @@ Wally:
 
 ```toml
 [server-dependencies]
-FreedumbStore = "boatbomber/freedumbstore@0.6.1"
+FreedumbStore = "boatbomber/freedumbstore@0.6.2"
 ```
 
 Rojo:

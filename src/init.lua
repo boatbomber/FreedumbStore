@@ -113,7 +113,7 @@ function FreedumbStore:SetCacheAsync(key: string, value: any?, expiration: numbe
 
 		if type(value) == "table" then
 			-- Ensure no one accidentally modifies the cache
-			value = table.freeze(Util.deepCopy(value))
+			value = table.freeze(value)
 		end
 		self._cache[key] = value
 
@@ -141,7 +141,7 @@ function FreedumbStore:RemoveCacheAsync(key: string)
 end
 
 function FreedumbStore:GetCached(key: string)
-	return self._cache[key]
+	return Util.deepCopy(self._cache[key])
 end
 
 function FreedumbStore:OnChunkChanged(listener: (chunkIndex: number, chunk: any) -> ()): () -> ()

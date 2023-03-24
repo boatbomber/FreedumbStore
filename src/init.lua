@@ -53,7 +53,7 @@ function FreedumbStore.new(name: string, primaryKey: string)
 			local chunkIndex = tonumber(key)
 			if fromExternal then
 				-- Clear our outdated cache
-				store:ClearCache(chunkIndex)
+				store:RemoveCacheAsync(chunkIndex)
 				store:_log(1, "Chunk", chunkIndex, "was changed externally")
 			else
 				store:_log(1, "Chunk", chunkIndex, "was changed locally")
@@ -421,6 +421,10 @@ function FreedumbStore:SetChunkAsync(chunkIndex: number, chunk: any)
 		3, -- Retry count
 		5 -- Delay between retries (in seconds)
 	):andThen(function()
+		-- Update cache
+		self:_log(1, "Updating cache for chunk", chunkIndex, "from local set")
+		return self:SetCacheAsync(chunkIndex, chunk, 3600)
+	end):andThen(function()
 		-- Update location memory
 		self:_log(1, "Updating chunk", chunkIndex, "location memory to new location")
 		return Promise.retryWithDelay(
@@ -440,9 +444,6 @@ function FreedumbStore:SetChunkAsync(chunkIndex: number, chunk: any)
 					self:_log(2, "Failed to get latest", chunkIndex, "from true location", trueLocation, "with error", trueDataResult, " (cleared cache instead)")
 					self:RemoveCacheAsync(chunkIndex)
 				end
-			else
-				self:_log(1, "Updating cache for chunk", chunkIndex, "from local set")
-				self:SetCacheAsync(chunkIndex, chunk, 3600)
 			end
 
 			-- Update top chunk if needed

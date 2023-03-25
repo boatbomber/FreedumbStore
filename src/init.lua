@@ -15,6 +15,7 @@ local Sanitizer = require(script:WaitForChild("Sanitizer"))
 local Util = require(script:WaitForChild("Util"))
 
 local Promise = require(script.Parent.Promise)
+local HashLib = require(script.Parent.HashLib)
 
 local FreedumbStore = {
 	_storeCache = {},
@@ -41,10 +42,10 @@ function FreedumbStore.new(name: string, primaryKey: string)
 		_cache = {},
 		_cacheExpirations = {},
 
-		_datastore = DataStoreService:GetDataStore(name),
-		_memorystore = LongTermMemory.new(name .. "/" .. primaryKey .. "/Mem"),
-		_keymap = LongTermMemory.new(name .. "/" .. primaryKey .. "/Keys"),
-		_lockstore = MemoryStoreService:GetSortedMap(name .. "/" .. primaryKey .. "/Locks"),
+		_datastore = DataStoreService:GetDataStore(HashLib.sha1(name)),
+		_memorystore = LongTermMemory.new(HashLib.sha1(name .. "/" .. primaryKey .. "/Mem")),
+		_keymap = LongTermMemory.new(HashLib.sha1(name .. "/" .. primaryKey .. "/Keys")),
+		_lockstore = MemoryStoreService:GetSortedMap(HashLib.sha1(name .. "/" .. primaryKey .. "/Locks")),
 	}, FreedumbStore)
 	FreedumbStore._storeCache[name][primaryKey] = store
 

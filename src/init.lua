@@ -23,6 +23,16 @@ local FreedumbStore = {
 }
 FreedumbStore.__index = FreedumbStore
 
+local function createSafeName(name: string)
+	if #name < 50 then
+		-- This name is already safe
+		return name
+	end
+
+	-- The name is too long, hash it down
+	return HashLib.sha1(name)
+end
+
 function FreedumbStore.new(name: string, primaryKey: string)
 	if FreedumbStore._storeCache[name] == nil then
 		FreedumbStore._storeCache[name] = {}
@@ -42,10 +52,10 @@ function FreedumbStore.new(name: string, primaryKey: string)
 		_cache = {},
 		_cacheExpirations = {},
 
-		_datastore = DataStoreService:GetDataStore(HashLib.sha1(name)),
-		_memorystore = LongTermMemory.new(HashLib.sha1(name .. "/" .. primaryKey .. "/Mem")),
-		_keymap = LongTermMemory.new(HashLib.sha1(name .. "/" .. primaryKey .. "/Keys")),
-		_lockstore = MemoryStoreService:GetSortedMap(HashLib.sha1(name .. "/" .. primaryKey .. "/Locks")),
+		_datastore = DataStoreService:GetDataStore(createSafeName(name)),
+		_memorystore = LongTermMemory.new(createSafeName(name .. "/" .. primaryKey .. "/Mem")),
+		_keymap = LongTermMemory.new(createSafeName(name .. "/" .. primaryKey .. "/Keys")),
+		_lockstore = MemoryStoreService:GetSortedMap(createSafeName(name .. "/" .. primaryKey .. "/Locks")),
 	}, FreedumbStore)
 	FreedumbStore._storeCache[name][primaryKey] = store
 

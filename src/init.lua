@@ -88,12 +88,20 @@ function FreedumbStore:Destroy()
 		task.wait()
 	end
 
+	-- Cancel all cache expirations
+	for _key, expiration in self._cacheExpirations do
+		task.cancel(expiration)
+	end
+
+	-- Remove inherited methods
 	setmetatable(self, nil)
 
+	-- Destroy all service instances
 	self._memorystore:Destroy()
 	self._keymap:Destroy()
 	self._lockstore:Destroy()
 
+	-- Empty the table
 	table.clear(self)
 end
 

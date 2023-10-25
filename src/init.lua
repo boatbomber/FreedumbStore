@@ -307,6 +307,16 @@ function FreedumbStore:SetChunkIndexOfKey(key: string, chunkIndex: number)
 	end)
 end
 
+function FreedumbStore:RemoveChunkIndexOfKey(key: string)
+	return self._keymap:RemoveAsync(key):andThen(function(storedIndex)
+		self:_log(1, "Key is no longer mapped anywhere", storedIndex)
+		return storedIndex
+	end):catch(function(err)
+		self:_log(2, "Failed to remove chunk index of key", key, "with error", err)
+		return Promise.reject(err)
+	end)
+end
+
 function FreedumbStore:GetChunkAsync(chunkIndex: number, useCache: boolean?)
 	self:_log(1, "Getting chunk", chunkIndex, "(useCache=", useCache, ")")
 	if (useCache ~= false) and (self._cache[chunkIndex] ~= nil) then
@@ -608,7 +618,7 @@ function FreedumbStore:RemoveAsync(key: string): boolean
 			return chunk
 		end):andThen(function(_newChunk)
 			-- Remove where this key is
-			return self:SetChunkIndexOfKey(key, nil):andThen(function(_storedIndex)
+			return self:RemoveChunkIndexOfKey(key):andThen(function(_storedIndex)
 				return true
 			end)
 		end)

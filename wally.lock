@@ -4,8 +4,13 @@ registry = "test"
 
 [[package]]
 name = "boatbomber/freedumbstore"
-version = "0.5.0"
-dependencies = [["Promise", "evaera/promise@4.0.0"]]
+version = "0.7.2"
+dependencies = [["HashLib", "boatbomber/hashlib@1.0.0"], ["Promise", "evaera/promise@4.0.0"]]
+
+[[package]]
+name = "boatbomber/hashlib"
+version = "1.0.0"
+dependencies = []
 
 [[package]]
 name = "evaera/promise"

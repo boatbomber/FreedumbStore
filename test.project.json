@@ -1,28 +1,28 @@
 {
-	"name": "FreedumbStore Test",
-	"tree": {
-		"$className": "DataModel",
+  "name": "FreedumbStore Test",
+  "tree": {
+    "$className": "DataModel",
 
-		"ServerStorage": {
-			"$className": "ServerStorage",
-			"Packages": {
-				"$className": "Folder",
-				"FreedumbStore": {
-					"$path": "src"
-				}
-			}
-		},
+    "ServerStorage": {
+      "$className": "ServerStorage",
+      "Packages": {
+        "$path": "Packages",
+        "FreedumbStore": {
+          "$path": "src"
+        }
+      }
+    },
 
-		"ServerScriptService": {
-			"$className": "ServerScriptService",
-			"$path": "test"
-		},
+    "ServerScriptService": {
+      "$className": "ServerScriptService",
+      "$path": "test"
+    },
 
-		"Players": {
-			"$className": "Players",
-			"$properties": {
-				"CharacterAutoLoads": false
-			}
-		}
-	}
+    "Players": {
+      "$className": "Players",
+      "$properties": {
+        "CharacterAutoLoads": false
+      }
+    }
+  }
 }

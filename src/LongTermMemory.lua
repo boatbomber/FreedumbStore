@@ -399,6 +399,8 @@ function LongTermMemory:Backup()
 			end
 
 			for _, item in ipairs(items) do
+				if not item.value then continue end
+
 				self:_log(1, "Backing up", "['" .. tostring(item.key) .. "'] =", item.value)
 				local backupSuccess, backupErr = pcall(self._datastore.SetAsync, self._datastore, item.key, item.value)
 				if backupSuccess then

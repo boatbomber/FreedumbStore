@@ -4,7 +4,7 @@ registry = "test"
 
 [[package]]
 name = "boatbomber/freedumbstore"
-version = "0.7.3"
+version = "0.7.4"
 dependencies = [["HashLib", "boatbomber/hashlib@1.0.0"], ["Promise", "evaera/promise@4.0.0"]]
 
 [[package]]

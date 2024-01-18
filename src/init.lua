@@ -88,12 +88,20 @@ function FreedumbStore:Destroy()
 		task.wait()
 	end
 
+	-- Cancel all cache expirations
+	for _key, expiration in self._cacheExpirations do
+		task.cancel(expiration)
+	end
+
+	-- Remove inherited methods
 	setmetatable(self, nil)
 
+	-- Destroy all service instances
 	self._memorystore:Destroy()
 	self._keymap:Destroy()
 	self._lockstore:Destroy()
 
+	-- Empty the table
 	table.clear(self)
 end
 
@@ -295,6 +303,16 @@ function FreedumbStore:SetChunkIndexOfKey(key: string, chunkIndex: number)
 		return storedIndex
 	end):catch(function(err)
 		self:_log(2, "Failed to set chunk index of key", key, "with error", err)
+		return Promise.reject(err)
+	end)
+end
+
+function FreedumbStore:RemoveChunkIndexOfKey(key: string)
+	return self._keymap:RemoveAsync(key):andThen(function(storedIndex)
+		self:_log(1, "Key is no longer mapped anywhere", storedIndex)
+		return storedIndex
+	end):catch(function(err)
+		self:_log(2, "Failed to remove chunk index of key", key, "with error", err)
 		return Promise.reject(err)
 	end)
 end
@@ -600,7 +618,7 @@ function FreedumbStore:RemoveAsync(key: string): boolean
 			return chunk
 		end):andThen(function(_newChunk)
 			-- Remove where this key is
-			return self:SetChunkIndexOfKey(key, nil):andThen(function(_storedIndex)
+			return self:RemoveChunkIndexOfKey(key):andThen(function(_storedIndex)
 				return true
 			end)
 		end)

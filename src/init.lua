@@ -80,7 +80,7 @@ function FreedumbStore.new(name: string, primaryKey: string)
 end
 
 function FreedumbStore:Destroy()
-	self:_log(2, "Destroying")
+	self:_log(1, "Destroying")
 	FreedumbStore._storeCache[self._name][self._primaryKey] = nil
 
 	while next(self._locks) ~= nil do
